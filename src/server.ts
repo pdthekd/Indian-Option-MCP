@@ -33,7 +33,7 @@ import type { CostBreakdown } from './costs/types.js';
 import { estimateTax, TAX_ESTIMATE_LABEL } from './tax/tax-model.js';
 
 // Constants & utils
-import { getLotSize } from './data/constants/lot-sizes.js';
+import { lotSizeFor } from './data/constants/lot-sizes.js';
 import { getNextExpiry, EXPIRY_RULES_NOTE } from './data/constants/expiry-calendar.js';
 import { isMarketOpen, getMarketStatusInfo } from './utils/date.js';
 import { calendarDaysToExpiry, istDate } from './utils/time.js';
@@ -107,11 +107,12 @@ function inferStrikeInterval(chain: OptionChainData): number {
   return Math.min(...diffs);
 }
 
-/** Lot size from the static table, with its verification status. */
-function lotSizeInfo(symbol: string): { lotSize: number; note: string } {
+/** Lot size for a contract expiry, with its verification status and source. */
+function lotSizeInfo(symbol: string, expiry: string): { lotSize: number; note: string } {
+  const info = lotSizeFor(symbol, expiry);
   return {
-    lotSize: getLotSize(symbol),
-    note: 'Lot size from STATIC TABLE (UNVERIFIED — NSE revises lot sizes; verify against the exchange/broker instrument master).',
+    lotSize: info.lotSize,
+    note: `Lot size ${info.lotSize} for ${info.symbol} contracts expiring ${info.expiry} [${info.verification}] — ${info.source}.`,
   };
 }
 
@@ -416,7 +417,7 @@ export function createServer(opts: ServerOptions = {}): McpServer {
         throw new Error(`${strategy_name} needs two different expiries and is not supported by this builder.`);
       }
       const { chain, quality } = await getChain(symbol, expiry);
-      const { lotSize, note } = lotSizeInfo(chain.symbol);
+      const { lotSize, note } = lotSizeInfo(chain.symbol, chain.expiryDate);
       const interval = inferStrikeInterval(chain);
       const legs = buildStrategy(strategy_name, {
         spotPrice: chain.underlyingValue,
@@ -439,7 +440,7 @@ export function createServer(opts: ServerOptions = {}): McpServer {
     { symbol: Symbol, legs: z.array(OptionLeg).min(1).max(8), expiry: Expiry.optional() },
     async ({ symbol, legs, expiry }) => {
       const { chain, quality } = await getChain(symbol, expiry);
-      const { lotSize, note } = lotSizeInfo(chain.symbol);
+      const { lotSize, note } = lotSizeInfo(chain.symbol, chain.expiryDate);
       const priced = priceLegs(chain, legs);
       return text(strategyReport('📋 Custom position', chain, quality, priced, lotSize, note));
     },
@@ -710,10 +711,13 @@ export function createServer(opts: ServerOptions = {}): McpServer {
 
   server.tool(
     'lot_size',
-    'F&O lot size from a static table. UNVERIFIED — NSE revises lot sizes; confirm against the exchange/broker instrument master.',
-    { symbol: Symbol },
-    async ({ symbol }) => {
-      const { lotSize, note } = lotSizeInfo(symbol.toUpperCase());
+    'F&O lot size for contracts of a given expiry (lot sizes change over time). Index lot sizes are versioned by expiry with a stated verification level; stock lot sizes come from a stale static table (UNVERIFIED).',
+    {
+      symbol: Symbol,
+      expiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Contract expiry YYYY-MM-DD (default: today, IST)'),
+    },
+    async ({ symbol, expiry }) => {
+      const { lotSize, note } = lotSizeInfo(symbol.toUpperCase(), expiry ?? istDate(now()));
       return text(`Lot size for ${symbol.toUpperCase()}: ${lotSize} units per lot.\n${note}`);
     },
   );
@@ -738,7 +742,7 @@ export function createServer(opts: ServerOptions = {}): McpServer {
     { symbol: Symbol, legs: z.array(PricedLeg).min(1).max(8) },
     async ({ symbol, legs }) => {
       const { chain, quality } = await getChain(symbol);
-      const { lotSize, note } = lotSizeInfo(chain.symbol);
+      const { lotSize, note } = lotSizeInfo(chain.symbol, chain.expiryDate);
       const m = estimateMargin(legs, chain.underlyingValue, lotSize);
       return text([
         `💰 HEURISTIC margin — ${chain.symbol} (spot ₹${formatNumber(chain.underlyingValue)}, ${quality.status})`,

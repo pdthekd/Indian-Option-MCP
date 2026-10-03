@@ -73,7 +73,7 @@ export const INDICES: readonly IndexInfo[] = Object.freeze([
     name: 'Nifty 50',
     exchange: 'NSE',
     hasWeeklyExpiry: true,
-    lotSize: 75,
+    lotSize: 65, // from Jan-2026 contracts; see lot-sizes.ts history
     strikeInterval: 50,
     constituents: 50,
     description:
@@ -101,7 +101,7 @@ export const INDICES: readonly IndexInfo[] = Object.freeze([
     name: 'Nifty Financial Services',
     exchange: 'NSE',
     hasWeeklyExpiry: true,
-    lotSize: 40,
+    lotSize: 60, // unverified; see lot-sizes.ts history
     strikeInterval: 50,
     constituents: 20,
     description:

@@ -22,9 +22,9 @@
  * These are traded on the NFO segment and are cash-settled.
  */
 const INDEX_LOT_SIZES: Record<string, number> = {
-  NIFTY: 75,
+  NIFTY: 65, // current; history in INDEX_LOT_SIZE_HISTORY
   BANKNIFTY: 30,
-  FINNIFTY: 40,
+  FINNIFTY: 60, // current (unverified)
   MIDCPNIFTY: 120,
   NIFTYNXT50: 25,
   SENSEX: 10,
@@ -299,6 +299,88 @@ export const LOT_SIZES: Readonly<Record<string, number>> = Object.freeze({
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Versioned index lot sizes (keyed by CONTRACT EXPIRY)
+// ---------------------------------------------------------------------------
+
+export type LotSizeVerification =
+  /** Observed on the account holder's own contract notes. */
+  | 'CONTRACT_NOTE_OBSERVED'
+  /** Stated by the account holder. */
+  | 'USER_PROVIDED'
+  /** Secondary sources only. */
+  | 'UNVERIFIED';
+
+interface LotSizeVersion {
+  /** First contract expiry (inclusive, YYYY-MM-DD) this lot size applies to. */
+  expiryFrom: string;
+  /** Last contract expiry (inclusive), or null if current. */
+  expiryTo: string | null;
+  lotSize: number;
+  verification: LotSizeVerification;
+  source: string;
+}
+
+/**
+ * Index lot sizes change over time and apply by contract expiry, so old
+ * contracts keep their old lot size. Expiries before the earliest recorded
+ * version fail closed (no guessing).
+ */
+const INDEX_LOT_SIZE_HISTORY: Readonly<Record<string, readonly LotSizeVersion[]>> = Object.freeze({
+  NIFTY: [
+    { expiryFrom: '2025-01-01', expiryTo: '2025-12-31', lotSize: 75, verification: 'CONTRACT_NOTE_OBSERVED',
+      source: 'Account holder\'s Zerodha contract notes, May–Aug 2025: NIFTY options traded in multiples of 75' },
+    { expiryFrom: '2026-01-01', expiryTo: null, lotSize: 65, verification: 'USER_PROVIDED',
+      source: 'Account holder (2026-10-03): 65 from the January 2026 series for weekly, monthly and quarterly contracts; consistent with broker notices of NSE circular' },
+  ],
+  BANKNIFTY: [
+    { expiryFrom: '2025-01-01', expiryTo: '2025-12-31', lotSize: 35, verification: 'UNVERIFIED', source: 'Broker notices (secondary)' },
+    { expiryFrom: '2026-01-01', expiryTo: null, lotSize: 30, verification: 'UNVERIFIED', source: 'Broker notices of NSE lot-size revision (secondary)' },
+  ],
+  FINNIFTY: [
+    { expiryFrom: '2025-01-01', expiryTo: '2025-12-31', lotSize: 65, verification: 'UNVERIFIED', source: 'Broker notices (secondary)' },
+    { expiryFrom: '2026-01-01', expiryTo: null, lotSize: 60, verification: 'UNVERIFIED', source: 'Broker notices of NSE lot-size revision (secondary)' },
+  ],
+  MIDCPNIFTY: [
+    { expiryFrom: '2025-01-01', expiryTo: '2025-12-31', lotSize: 140, verification: 'UNVERIFIED', source: 'Broker notices (secondary)' },
+    { expiryFrom: '2026-01-01', expiryTo: null, lotSize: 120, verification: 'UNVERIFIED', source: 'Broker notices of NSE lot-size revision (secondary)' },
+  ],
+});
+
+export interface LotSizeInfo {
+  symbol: string;
+  lotSize: number;
+  verification: LotSizeVerification;
+  source: string;
+  /** Expiry used for the lookup. */
+  expiry: string;
+}
+
+/**
+ * Lot size for a contract, by symbol and contract expiry (YYYY-MM-DD).
+ * Index symbols use the versioned history; other symbols fall back to the
+ * static table and are always UNVERIFIED.
+ */
+export function lotSizeFor(symbol: string, expiry: string): LotSizeInfo {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(expiry)) throw new Error(`expiry must be YYYY-MM-DD (got "${expiry}")`);
+  const upper = symbol.toUpperCase().trim();
+  const history = INDEX_LOT_SIZE_HISTORY[upper];
+  if (history) {
+    const v = history.find((h) => expiry >= h.expiryFrom && (h.expiryTo === null || expiry <= h.expiryTo));
+    if (!v) {
+      throw new Error(`No recorded ${upper} lot size for contracts expiring ${expiry}. Refusing to guess.`);
+    }
+    return { symbol: upper, lotSize: v.lotSize, verification: v.verification, source: v.source, expiry };
+  }
+  return {
+    symbol: upper,
+    lotSize: getLotSize(upper),
+    verification: 'UNVERIFIED',
+    source: 'Static stock lot-size table (stale; includes delisted symbols) — verify against the exchange/broker instrument master',
+    expiry,
+  };
+}
 
 /**
  * Look up the lot size for a given F&O symbol.
