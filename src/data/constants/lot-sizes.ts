@@ -22,7 +22,7 @@
  * These are traded on the NFO segment and are cash-settled.
  */
 const INDEX_LOT_SIZES: Record<string, number> = {
-  NIFTY: 65, // current; history in INDEX_LOT_SIZE_HISTORY
+  NIFTY: 65, // current; history in INDEX_LOT_PERIODS
   BANKNIFTY: 30,
   FINNIFTY: 60, // current (unverified)
   MIDCPNIFTY: 120,
@@ -301,84 +301,135 @@ export const LOT_SIZES: Readonly<Record<string, number>> = Object.freeze({
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Versioned index lot sizes (keyed by CONTRACT EXPIRY)
+// Index lot sizes by TRADE DATE (derived from NSE bhavcopy files)
 // ---------------------------------------------------------------------------
+//
+// Each contract carries its own lot size. NSE revisions roll through in
+// stages: newly listed contracts get the new size first, then existing ones
+// switch on a cut-over date. So:
+//   - in a "uniform" period every contract of the index has the same size;
+//   - in a transition window the size depends on the specific contract and
+//     can only be read from that day's bhavcopy (see lotSizeFor's
+//     `observations` argument). Without it, lookups FAIL CLOSED.
+//
+// Periods below come from the first trading day of every month,
+// 2024-07-08 → 2026-10-01 (27 bhavcopy files), plus 2025-05-09..16 and
+// 2026-09-28..10-01. Boundaries between samples are therefore accurate only
+// to the sampling interval; anything inside a transition window must use
+// observations.
 
 export type LotSizeVerification =
-  /** Observed on the account holder's own contract notes. */
-  | 'CONTRACT_NOTE_OBSERVED'
-  /** Stated by the account holder. */
-  | 'USER_PROVIDED'
-  /** Secondary sources only. */
+  /** Read from that day's NSE bhavcopy for this exact contract. */
+  | 'EXCHANGE_BHAVCOPY'
+  /** All monthly bhavcopy samples in this period agree for every contract. */
+  | 'BHAVCOPY_SAMPLED'
+  /** Static table only (stocks) — stale. */
   | 'UNVERIFIED';
 
-interface LotSizeVersion {
-  /** First contract expiry (inclusive, YYYY-MM-DD) this lot size applies to. */
-  expiryFrom: string;
-  /** Last contract expiry (inclusive), or null if current. */
-  expiryTo: string | null;
+interface UniformPeriod {
+  /** First trade date (inclusive) of the uniform period. */
+  tradeFrom: string;
+  /** Last trade date (inclusive), or null if still current. */
+  tradeTo: string | null;
   lotSize: number;
-  verification: LotSizeVerification;
-  source: string;
 }
 
-/**
- * Index lot sizes change over time and apply by contract expiry, so old
- * contracts keep their old lot size. Expiries before the earliest recorded
- * version fail closed (no guessing).
- */
-const INDEX_LOT_SIZE_HISTORY: Readonly<Record<string, readonly LotSizeVersion[]>> = Object.freeze({
+const BHAVCOPY_SAMPLE_NOTE =
+  'NSE F&O bhavcopy (NewBrdLotQty), monthly samples 2024-07 → 2026-10; consistent with the account holder\'s ' +
+  'contract notes (75 in May–Aug 2025) and statement (65 from the January 2026 series)';
+
+/** Uniform periods per index. Gaps between periods are transition windows. */
+const INDEX_LOT_PERIODS: Readonly<Record<string, readonly UniformPeriod[]>> = Object.freeze({
   NIFTY: [
-    { expiryFrom: '2025-01-01', expiryTo: '2025-12-31', lotSize: 75, verification: 'CONTRACT_NOTE_OBSERVED',
-      source: 'Account holder\'s Zerodha contract notes, May–Aug 2025: NIFTY options traded in multiples of 75' },
-    { expiryFrom: '2026-01-01', expiryTo: null, lotSize: 65, verification: 'USER_PROVIDED',
-      source: 'Account holder (2026-10-03): 65 from the January 2026 series for weekly, monthly and quarterly contracts; consistent with broker notices of NSE circular' },
+    { tradeFrom: '2024-07-08', tradeTo: '2024-11-01', lotSize: 25 },
+    { tradeFrom: '2025-02-03', tradeTo: '2025-10-01', lotSize: 75 },
+    { tradeFrom: '2026-01-01', tradeTo: null, lotSize: 65 },
   ],
   BANKNIFTY: [
-    { expiryFrom: '2025-01-01', expiryTo: '2025-12-31', lotSize: 35, verification: 'UNVERIFIED', source: 'Broker notices (secondary)' },
-    { expiryFrom: '2026-01-01', expiryTo: null, lotSize: 30, verification: 'UNVERIFIED', source: 'Broker notices of NSE lot-size revision (secondary)' },
+    { tradeFrom: '2024-07-08', tradeTo: '2024-11-01', lotSize: 15 },
+    { tradeFrom: '2025-02-03', tradeTo: '2025-04-01', lotSize: 30 },
+    { tradeFrom: '2025-07-01', tradeTo: '2025-10-01', lotSize: 35 },
+    { tradeFrom: '2026-01-01', tradeTo: null, lotSize: 30 },
   ],
   FINNIFTY: [
-    { expiryFrom: '2025-01-01', expiryTo: '2025-12-31', lotSize: 65, verification: 'UNVERIFIED', source: 'Broker notices (secondary)' },
-    { expiryFrom: '2026-01-01', expiryTo: null, lotSize: 60, verification: 'UNVERIFIED', source: 'Broker notices of NSE lot-size revision (secondary)' },
+    { tradeFrom: '2024-08-01', tradeTo: '2024-11-01', lotSize: 25 },
+    { tradeFrom: '2025-02-03', tradeTo: '2025-10-01', lotSize: 65 },
+    { tradeFrom: '2026-01-01', tradeTo: null, lotSize: 60 },
   ],
   MIDCPNIFTY: [
-    { expiryFrom: '2025-01-01', expiryTo: '2025-12-31', lotSize: 140, verification: 'UNVERIFIED', source: 'Broker notices (secondary)' },
-    { expiryFrom: '2026-01-01', expiryTo: null, lotSize: 120, verification: 'UNVERIFIED', source: 'Broker notices of NSE lot-size revision (secondary)' },
+    { tradeFrom: '2024-08-01', tradeTo: '2024-11-01', lotSize: 50 },
+    { tradeFrom: '2025-02-03', tradeTo: '2025-04-01', lotSize: 120 },
+    { tradeFrom: '2025-07-01', tradeTo: '2025-10-01', lotSize: 140 },
+    { tradeFrom: '2026-01-01', tradeTo: null, lotSize: 120 },
+  ],
+  NIFTYNXT50: [
+    { tradeFrom: '2024-07-08', tradeTo: '2024-11-01', lotSize: 10 },
+    { tradeFrom: '2025-02-03', tradeTo: null, lotSize: 25 },
   ],
 });
+
+/** Per-contract lot sizes read from bhavcopy: key `${symbol}|${expiry}|${tradeDate}`. */
+export type LotSizeObservations = ReadonlyMap<string, number>;
+
+export function observationKey(symbol: string, expiry: string, tradeDate: string): string {
+  return `${symbol.toUpperCase()}|${expiry}|${tradeDate}`;
+}
 
 export interface LotSizeInfo {
   symbol: string;
   lotSize: number;
   verification: LotSizeVerification;
   source: string;
-  /** Expiry used for the lookup. */
   expiry: string;
+  tradeDate: string;
 }
 
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
- * Lot size for a contract, by symbol and contract expiry (YYYY-MM-DD).
- * Index symbols use the versioned history; other symbols fall back to the
- * static table and are always UNVERIFIED.
+ * Lot size of a contract (symbol + expiry) as traded on `tradeDate`.
+ *
+ * Order of precedence:
+ *  1. exact bhavcopy observation for (symbol, expiry, tradeDate);
+ *  2. a uniform period covering tradeDate (index symbols);
+ *  3. stocks: stale static table (UNVERIFIED).
+ * Index lookups in a transition window without an observation throw.
  */
-export function lotSizeFor(symbol: string, expiry: string): LotSizeInfo {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(expiry)) throw new Error(`expiry must be YYYY-MM-DD (got "${expiry}")`);
+export function lotSizeFor(
+  symbol: string,
+  expiry: string,
+  tradeDate: string,
+  observations?: LotSizeObservations,
+): LotSizeInfo {
+  if (!ISO.test(expiry)) throw new Error(`expiry must be YYYY-MM-DD (got "${expiry}")`);
+  if (!ISO.test(tradeDate)) throw new Error(`tradeDate must be YYYY-MM-DD (got "${tradeDate}")`);
+  if (tradeDate > expiry) throw new Error(`Contract expiring ${expiry} does not trade on ${tradeDate}`);
   const upper = symbol.toUpperCase().trim();
-  const history = INDEX_LOT_SIZE_HISTORY[upper];
-  if (history) {
-    const v = history.find((h) => expiry >= h.expiryFrom && (h.expiryTo === null || expiry <= h.expiryTo));
-    if (!v) {
-      throw new Error(`No recorded ${upper} lot size for contracts expiring ${expiry}. Refusing to guess.`);
-    }
-    return { symbol: upper, lotSize: v.lotSize, verification: v.verification, source: v.source, expiry };
+
+  const observed = observations?.get(observationKey(upper, expiry, tradeDate));
+  if (observed !== undefined) {
+    return { symbol: upper, lotSize: observed, verification: 'EXCHANGE_BHAVCOPY', source: `NSE bhavcopy ${tradeDate}`, expiry, tradeDate };
   }
+
+  const periods = INDEX_LOT_PERIODS[upper];
+  if (periods) {
+    const p = periods.find((x) => tradeDate >= x.tradeFrom && (x.tradeTo === null || tradeDate <= x.tradeTo));
+    if (!p) {
+      throw new Error(
+        `${upper} lot size on ${tradeDate} falls in a lot-size transition window or outside recorded history; ` +
+          'it depends on the contract — load that day\'s bhavcopy. Refusing to guess.',
+      );
+    }
+    return { symbol: upper, lotSize: p.lotSize, verification: 'BHAVCOPY_SAMPLED', source: BHAVCOPY_SAMPLE_NOTE, expiry, tradeDate };
+  }
+
   return {
     symbol: upper,
     lotSize: getLotSize(upper),
     verification: 'UNVERIFIED',
-    source: 'Static stock lot-size table (stale; includes delisted symbols) — verify against the exchange/broker instrument master',
+    source: 'Static stock lot-size table (stale; includes delisted symbols) — verify against bhavcopy',
     expiry,
+    tradeDate,
   };
 }
 
