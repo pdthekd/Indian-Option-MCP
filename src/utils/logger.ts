@@ -5,7 +5,9 @@
  * as it corrupts the JSON-RPC communication stream.
  */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+import { redact, redactObject } from './redact.js';
+
+type LogLevel ='debug' | 'info' | 'warn' | 'error';
 
 const LOG_LEVELS: Record<LogLevel, number> = {
   debug: 0,
@@ -36,8 +38,8 @@ function log(level: LogLevel, component: string, message: string, data?: unknown
 
   const prefix = `[${formatTimestamp()}] [${level.toUpperCase()}] [${component}]`;
   const line = data
-    ? `${prefix} ${message} ${JSON.stringify(data)}`
-    : `${prefix} ${message}`;
+    ? `${prefix} ${redact(message)} ${JSON.stringify(redactObject(data))}`
+    : `${prefix} ${redact(message)}`;
 
   console.error(line);
 }

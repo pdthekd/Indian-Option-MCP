@@ -1,45 +1,46 @@
 // ────────────────────────────────────────────────────────────────────────────
 // Provider Factory
 //
-// Creates the appropriate DataProvider instance based on configuration.
-// Falls back to the free NSE provider when no Zerodha credentials are given.
+// Creates the DataProvider selected by configuration. Fails CLOSED: if the
+// configured provider cannot be constructed, it throws instead of silently
+// switching data source (a silent switch changes data quality without the
+// operator knowing).
 // ────────────────────────────────────────────────────────────────────────────
 
 import type { DataProvider } from './providers/base.provider.js';
 import { NSEProvider } from './providers/nse.provider.js';
 import { ZerodhaProvider } from './providers/zerodha.provider.js';
 
-/**
- * Minimal config shape expected by the factory.
- * In a real project this would be imported from `../config.js`.
- */
 interface ProviderConfig {
-  dataProvider?: 'nse' | 'zerodha';
+  dataProvider: 'nse' | 'zerodha';
   kiteApiKey?: string;
-  kiteApiSecret?: string;
   kiteAccessToken?: string;
 }
 
 /**
- * Build the config from environment variables so the factory is
- * self-contained even if the main config module doesn't exist yet.
+ * Read provider configuration from the environment.
+ *
+ * KITE_API_SECRET is intentionally NOT read: it is only needed for the login
+ * session exchange, which must be done outside this long-running process.
  */
 function loadConfig(): ProviderConfig {
+  const raw = (process.env.DATA_PROVIDER ?? 'nse').trim().toLowerCase();
+  if (raw !== 'nse' && raw !== 'zerodha') {
+    throw new Error(`DATA_PROVIDER must be "nse" or "zerodha" (got "${raw}").`);
+  }
   return {
-    dataProvider:
-      (process.env.DATA_PROVIDER as ProviderConfig['dataProvider']) ?? 'nse',
+    dataProvider: raw,
     kiteApiKey: process.env.KITE_API_KEY,
-    kiteApiSecret: process.env.KITE_API_SECRET,
     kiteAccessToken: process.env.KITE_ACCESS_TOKEN,
   };
 }
 
 /**
- * Create and return a DataProvider based on the current configuration.
+ * Create the configured DataProvider.
  *
- * - `DATA_PROVIDER=zerodha` → ZerodhaProvider (requires KITE_API_KEY +
- *   KITE_ACCESS_TOKEN)
- * - anything else → NSEProvider (free, no credentials needed)
+ * - `DATA_PROVIDER=zerodha` → ZerodhaProvider (requires KITE_API_KEY and
+ *   KITE_ACCESS_TOKEN; throws if missing)
+ * - `DATA_PROVIDER=nse` or unset → NSEProvider
  */
 export function createDataProvider(
   overrideConfig?: Partial<ProviderConfig>,
@@ -48,21 +49,15 @@ export function createDataProvider(
 
   if (cfg.dataProvider === 'zerodha') {
     if (!cfg.kiteApiKey || !cfg.kiteAccessToken) {
-      console.error(
-        '[ProviderFactory] DATA_PROVIDER is "zerodha" but KITE_API_KEY / ' +
-          'KITE_ACCESS_TOKEN are missing — falling back to NSE provider.',
+      throw new Error(
+        'DATA_PROVIDER is "zerodha" but KITE_API_KEY / KITE_ACCESS_TOKEN are missing. ' +
+          'Refusing to fall back to a different data source silently.',
       );
-      return new NSEProvider();
     }
-
     console.error('[ProviderFactory] Using Zerodha (Kite Connect) provider.');
-    return new ZerodhaProvider(
-      cfg.kiteApiKey,
-      cfg.kiteApiSecret ?? '',
-      cfg.kiteAccessToken,
-    );
+    return new ZerodhaProvider(cfg.kiteApiKey, cfg.kiteAccessToken);
   }
 
-  console.error('[ProviderFactory] Using NSE India provider (free).');
+  console.error('[ProviderFactory] Using NSE India provider (unofficial public endpoints).');
   return new NSEProvider();
 }

@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: CI only needs to read the repository.
+permissions:
+  contents: read
+
 jobs:
   lint-and-test:
     name: Lint, Test & Build
@@ -24,8 +28,11 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (lockfile, no install scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Type check
         run: npm run lint
@@ -40,6 +47,9 @@ jobs:
         run: |
           test -f dist/bundle.mjs || (echo "❌ dist/bundle.mjs not found" && exit 1)
           echo "✅ Bundle size: $(wc -c < dist/bundle.mjs) bytes"
+
+      - name: MCP stdio smoke test (offline)
+        run: npm run test:mcp
 
       - name: Smoke test — MCP initialize handshake
         run: |

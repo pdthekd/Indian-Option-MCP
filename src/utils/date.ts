@@ -62,8 +62,13 @@ export function parseExpiryDate(dateStr: string): Date {
   if (!dateStr) throw new Error('Empty date string');
 
   // ISO format: YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return new Date(dateStr + 'T00:00:00+05:30');
+  // Returned as a *local-field* calendar date, the same representation
+  // nowIST() uses, so day arithmetic is independent of the host time zone.
+  // (Previously an IST instant was returned, which shifted the calendar day
+  // on hosts west of IST, e.g. CI runners in UTC.)
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (iso) {
+    return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
   }
 
   // NSE format: DD-Mon-YYYY

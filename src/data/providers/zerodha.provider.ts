@@ -17,6 +17,20 @@ import {
   CandleData,
   Instrument,
 } from './base.provider.js';
+import { num, positive, sumField } from '../quality.js';
+import { redact } from '../../utils/redact.js';
+import { normalizeExpiry, parseSourceTimestamp } from '../../utils/time.js';
+
+/** Kite quote keys for index underlyings (Kite names indices by full name). */
+const INDEX_SPOT_KEYS: Record<string, string> = {
+  NIFTY: 'NSE:NIFTY 50',
+  BANKNIFTY: 'NSE:NIFTY BANK',
+  FINNIFTY: 'NSE:NIFTY FIN SERVICE',
+  MIDCPNIFTY: 'NSE:NIFTY MID SELECT',
+  NIFTYNXT50: 'NSE:NIFTY NEXT 50',
+  SENSEX: 'BSE:SENSEX',
+  BANKEX: 'BSE:BANKEX',
+};
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -68,7 +82,6 @@ export class ZerodhaProvider extends BaseProvider {
   readonly name = 'zerodha';
 
   private apiKey: string;
-  private apiSecret: string;
   private accessToken: string;
 
   /** In-memory instrument list (loaded from CSV). */
@@ -79,10 +92,13 @@ export class ZerodhaProvider extends BaseProvider {
   private requestQueue: Promise<unknown> = Promise.resolve();
   private lastRequestAt = 0;
 
-  constructor(apiKey: string, apiSecret: string, accessToken: string) {
+  /**
+   * The API secret is deliberately NOT accepted: it is only needed for the
+   * login/session-exchange step, which must happen outside this process.
+   */
+  constructor(apiKey: string, accessToken: string) {
     super();
     this.apiKey = apiKey;
-    this.apiSecret = apiSecret;
     this.accessToken = accessToken;
   }
 
@@ -170,7 +186,7 @@ export class ZerodhaProvider extends BaseProvider {
       if (!res.ok) {
         const body = await res.text().catch(() => '');
         throw new Error(
-          `[Zerodha] HTTP ${res.status} ${res.statusText}: ${body.slice(0, 300)}`,
+          `[Zerodha] HTTP ${res.status} ${res.statusText}: ${redact(body.slice(0, 300))}`,
         );
       }
 
@@ -303,7 +319,14 @@ export class ZerodhaProvider extends BaseProvider {
       );
     }
 
-    const targetExpiry = expiryDate ?? expiries[0];
+    let targetExpiry = expiries[0];
+    if (expiryDate !== undefined) {
+      const norm = normalizeExpiry(expiryDate);
+      if (!norm || !expiries.includes(norm)) {
+        throw new Error(`[Zerodha] Expiry "${expiryDate}" not listed. Available: ${expiries.slice(0, 12).join(', ')}`);
+      }
+      targetExpiry = norm;
+    }
 
     // 2. Filter option instruments for this symbol + expiry.
     const optionInstruments = this.instruments.filter(
@@ -328,6 +351,8 @@ export class ZerodhaProvider extends BaseProvider {
 
     // 5. Group by strike and assemble rows.
     const strikeMap = new Map<number, OptionChainRow>();
+    let missingQuotes = 0;
+    let latestTs: Date | null = null;
 
     for (const inst of optionInstruments) {
       let row = strikeMap.get(inst.strike);
@@ -339,23 +364,29 @@ export class ZerodhaProvider extends BaseProvider {
       const kiteKey = `${inst.exchange}:${inst.tradingSymbol}`;
       const q = quoteMap.get(kiteKey);
 
+      if (!q) missingQuotes++;
+      const lastPrice = positive(q?.last_price);
+      const prevClose = positive(q?.ohlc?.close);
+      const ts = parseSourceTimestamp(q?.timestamp);
+      if (ts && (!latestTs || ts > latestTs)) latestTs = ts;
       const leg: OptionData = {
         strikePrice: inst.strike,
         expiryDate: targetExpiry,
         optionType: inst.instrumentType as 'CE' | 'PE',
-        lastPrice: q?.last_price ?? 0,
-        change: q?.net_change ?? 0,
-        pChange: q?.last_price && q?.previousClose
-          ? ((q.last_price - q.previousClose) / q.previousClose) * 100
-          : 0,
-        openInterest: q?.oi ?? 0,
-        changeinOpenInterest: q?.oiDayChange ?? 0,
-        totalTradedVolume: q?.volume ?? 0,
-        impliedVolatility: 0, // Kite doesn't provide IV directly
-        bidQty: q?.depth?.buy?.[0]?.quantity ?? 0,
-        bidPrice: q?.depth?.buy?.[0]?.price ?? 0,
-        askQty: q?.depth?.sell?.[0]?.quantity ?? 0,
-        askPrice: q?.depth?.sell?.[0]?.price ?? 0,
+        lastPrice,
+        change: num(q?.net_change),
+        pChange: lastPrice !== null && prevClose !== null
+          ? ((lastPrice - prevClose) / prevClose) * 100
+          : null,
+        openInterest: num(q?.oi),
+        // Kite quotes expose oi_day_high/low, not a change vs previous day.
+        changeinOpenInterest: null,
+        totalTradedVolume: num(q?.volume),
+        impliedVolatility: null, // Kite does not publish IV
+        bidQty: positive(q?.depth?.buy?.[0]?.quantity),
+        bidPrice: positive(q?.depth?.buy?.[0]?.price),
+        askQty: positive(q?.depth?.sell?.[0]?.quantity),
+        askPrice: positive(q?.depth?.sell?.[0]?.price),
         underlyingValue: spotPrice,
       };
 
@@ -367,17 +398,9 @@ export class ZerodhaProvider extends BaseProvider {
       (a, b) => a.strikePrice - b.strikePrice,
     );
 
-    const strikes = rows.map((r) => r.strikePrice);
-
-    let totalCEOI = 0;
-    let totalPEOI = 0;
-    let totalCEVol = 0;
-    let totalPEVol = 0;
-    for (const r of rows) {
-      totalCEOI += r.CE?.openInterest ?? 0;
-      totalPEOI += r.PE?.openInterest ?? 0;
-      totalCEVol += r.CE?.totalTradedVolume ?? 0;
-      totalPEVol += r.PE?.totalTradedVolume ?? 0;
+    const reasons = ['Kite does not publish implied volatility or change in OI.'];
+    if (missingQuotes > 0) {
+      reasons.push(`${missingQuotes} of ${optionInstruments.length} contracts returned no quote.`);
     }
 
     return {
@@ -385,13 +408,21 @@ export class ZerodhaProvider extends BaseProvider {
       underlyingValue: spotPrice,
       expiryDate: targetExpiry,
       expiryDates: expiries,
-      strikePrices: strikes,
+      strikePrices: rows.map((r) => r.strikePrice),
       rows,
-      timestamp: new Date().toISOString(),
-      totalCEOpenInterest: totalCEOI,
-      totalPEOpenInterest: totalPEOI,
-      totalCEVolume: totalCEVol,
-      totalPEVolume: totalPEVol,
+      timestamp: latestTs ? latestTs.toISOString() : '',
+      dataQuality: {
+        status: rows.length ? 'DEGRADED' : 'UNAVAILABLE',
+        source: 'zerodha',
+        unavailableFields: ['impliedVolatility', 'changeinOpenInterest'],
+        reasons,
+        asOf: latestTs ? latestTs.toISOString() : null,
+        fetchedAt: new Date().toISOString(),
+      },
+      totalCEOpenInterest: sumField(rows, 'CE', 'openInterest') ?? 0,
+      totalPEOpenInterest: sumField(rows, 'PE', 'openInterest') ?? 0,
+      totalCEVolume: sumField(rows, 'CE', 'totalTradedVolume') ?? 0,
+      totalPEVolume: sumField(rows, 'PE', 'totalTradedVolume') ?? 0,
     };
   }
 
@@ -446,7 +477,8 @@ export class ZerodhaProvider extends BaseProvider {
 
   async getSpotPrice(symbol: string): Promise<number> {
     // Try NSE index key first, then equity.
-    const keys = [`NSE:${symbol}`, `NSE:${symbol}-EQ`];
+    const upper = symbol.toUpperCase();
+    const keys = INDEX_SPOT_KEYS[upper] ? [INDEX_SPOT_KEYS[upper]] : [`NSE:${upper}`];
     for (const key of keys) {
       try {
         const raw = await this.kiteFetch<KiteLTPResponse>('/quote/ltp', {
@@ -537,7 +569,7 @@ export class ZerodhaProvider extends BaseProvider {
       if (timeMinutes >= 555 && timeMinutes < 930) {
         // 9:15 AM to 3:30 PM IST
         status = 'Open';
-      } else if (timeMinutes >= 900 && timeMinutes < 555) {
+      } else if (timeMinutes >= 540 && timeMinutes < 555) {
         status = 'Pre-open';
       } else if (timeMinutes >= 930 && timeMinutes < 960) {
         status = 'Post-close';

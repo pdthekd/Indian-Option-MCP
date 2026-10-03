@@ -8,7 +8,8 @@
 export interface StrategyLeg {
   type: 'CE' | 'PE';
   strike: number;
-  premium: number;
+  /** Market premium per unit; null when the chain has no price for this strike. */
+  premium: number | null;
   qty: number;
   action: 'BUY' | 'SELL';
   expiry: string;
@@ -41,16 +42,17 @@ export interface StrategyTemplate {
   buildLegs: (params: StrategyParams) => StrategyLeg[];
 }
 
-function getPremium(params: StrategyParams, strike: number, type: 'CE' | 'PE'): number {
-  if (params.premiums) {
-    return params.premiums.get(`${strike}-${type}`) ?? 0;
-  }
-  return 0;
+/** Premium for a strike, or null if unknown. Never defaults to 0. */
+function getPremium(params: StrategyParams, strike: number, type: 'CE' | 'PE'): number | null {
+  return params.premiums?.get(`${strike}-${type}`) ?? null;
 }
+
+/** Strategies that need two different expiries and are NOT correctly built here. */
+export const MULTI_EXPIRY_STRATEGIES: ReadonlySet<string> = new Set(['calendar_call_spread', 'calendar_put_spread']);
 
 function leg(
   type: 'CE' | 'PE', strike: number, action: 'BUY' | 'SELL',
-  qty: number, premium: number, expiry: string
+  qty: number, premium: number | null, expiry: string
 ): StrategyLeg {
   return { type, strike, action, qty, premium, expiry };
 }

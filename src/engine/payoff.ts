@@ -174,20 +174,19 @@ export function calculatePayoffAtExpiry(
     minPnl = Math.min(minPnl, totalPnl);
   }
 
-  const breakevens = findBreakevens(data);
+  void maxPnl;
+  void minPnl;
 
-  // Check for unlimited profit/loss at extremes
-  // If P&L at max > P&L at (max - step), it's increasing → potentially unlimited
-  const lastTwo = data.slice(-2);
-  const isUnlimitedProfit =
-    lastTwo.length === 2 && lastTwo[1].pnl > lastTwo[0].pnl && maxPnl === lastTwo[1].pnl;
-
-  const firstTwo = data.slice(0, 2);
-  const isUnlimitedLoss =
-    firstTwo.length === 2 && firstTwo[0].pnl < firstTwo[1].pnl && minPnl === firstTwo[0].pnl;
-
-  const effectiveMaxProfit = isUnlimitedProfit ? Infinity : maxPnl;
-  const effectiveMaxLoss = isUnlimitedLoss ? -Infinity : minPnl;
+  // Expiry payoff is piecewise linear with kinks only at strikes, so its
+  // global extremes over S ∈ [0, ∞) are exact: evaluate at S = 0 and every
+  // strike, and use the slope beyond the highest strike for the upper tail.
+  // (The previous grid-edge heuristic missed unlimited loss on the upside —
+  // e.g. a naked short call was reported with a finite max loss — and
+  // reported a short put's bounded loss as unlimited.)
+  const exact = analyzeExpiryPayoff(legs, lotSize);
+  const effectiveMaxProfit = exact.maxProfit;
+  const effectiveMaxLoss = exact.maxLoss;
+  const breakevens = exact.breakevens;
 
   const riskRewardRatio =
     effectiveMaxLoss === 0
@@ -202,6 +201,87 @@ export function calculatePayoffAtExpiry(
     maxLoss: effectiveMaxLoss,
     breakevens,
     riskRewardRatio,
+  };
+}
+
+/** Exact characteristics of an expiry payoff over S ∈ [0, ∞). */
+export interface ExpiryPayoffAnalysis {
+  /** Max profit (Infinity if unbounded as S → ∞). */
+  maxProfit: number;
+  /** Max loss as a negative number (−Infinity if unbounded as S → ∞). */
+  maxLoss: number;
+  /** Exact breakevens (P&L crosses or touches zero), ascending. */
+  breakevens: number[];
+  /** dP&L/dS for S above the highest strike. */
+  upperTailSlope: number;
+  /** P&L at S = 0. */
+  pnlAtZero: number;
+  /** Kink points used (0 and each distinct strike), ascending. */
+  kinks: number[];
+}
+
+/** Total expiry P&L of all legs at a single underlying price. */
+export function payoffAt(legs: StrategyLeg[], spot: number, lotSize: number, offset = 0): number {
+  let total = offset;
+  for (const leg of legs) total += legPayoffAtExpiry(leg, spot, lotSize);
+  return total;
+}
+
+/**
+ * Exact analysis of a piecewise-linear expiry payoff.
+ *
+ * @param offset Constant added to P&L at every price (e.g. −estimated costs),
+ *               so breakevens can be computed NET of costs.
+ */
+export function analyzeExpiryPayoff(
+  legs: StrategyLeg[],
+  lotSize: number,
+  offset = 0,
+): ExpiryPayoffAnalysis {
+  const kinks = Array.from(new Set([0, ...legs.map((l) => l.strike)]))
+    .filter((k) => k >= 0)
+    .sort((a, b) => a - b);
+  const values = kinks.map((k) => payoffAt(legs, k, lotSize, offset));
+
+  let upperTailSlope = 0;
+  for (const leg of legs) {
+    if (leg.type === 'CE') upperTailSlope += (leg.action === 'BUY' ? 1 : -1) * leg.qty * lotSize;
+  }
+
+  const finiteMax = Math.max(...values);
+  const finiteMin = Math.min(...values);
+  const EPS = 1e-9;
+  const maxProfit = upperTailSlope > EPS ? Infinity : finiteMax;
+  const maxLoss = upperTailSlope < -EPS ? -Infinity : finiteMin;
+
+  const bes: number[] = [];
+  const pushBE = (x: number) => {
+    const r = Math.round(x * 100) / 100;
+    if (!bes.some((b) => Math.abs(b - r) < 0.005)) bes.push(r);
+  };
+  for (let i = 0; i < kinks.length; i++) {
+    const v = values[i];
+    if (Math.abs(v) < EPS && kinks[i] > 0) pushBE(kinks[i]);
+    if (i < kinks.length - 1) {
+      const v2 = values[i + 1];
+      if ((v < -EPS && v2 > EPS) || (v > EPS && v2 < -EPS)) {
+        pushBE(kinks[i] + (-v * (kinks[i + 1] - kinks[i])) / (v2 - v));
+      }
+    }
+  }
+  const last = values[values.length - 1];
+  const lastK = kinks[kinks.length - 1];
+  if ((last < -EPS && upperTailSlope > EPS) || (last > EPS && upperTailSlope < -EPS)) {
+    pushBE(lastK - last / upperTailSlope);
+  }
+
+  return {
+    maxProfit,
+    maxLoss,
+    breakevens: bes.sort((a, b) => a - b),
+    upperTailSlope,
+    pnlAtZero: values[0],
+    kinks,
   };
 }
 

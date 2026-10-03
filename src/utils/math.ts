@@ -4,36 +4,14 @@
  */
 
 /**
- * Standard normal probability density function (PDF).
- * φ(x) = (1/√(2π)) × e^(-x²/2)
+ * Standard normal PDF and CDF.
+ *
+ * Re-exported from the Black-Scholes engine so the codebase has ONE
+ * implementation (A&S 26.2.17, |error| < 7.5e-8). The previous local copy
+ * applied erf (A&S 7.1.26) coefficients to x instead of x/√2, giving
+ * Φ(1) = 0.870 instead of 0.841, which corrupted probability of profit.
  */
-export function normPDF(x: number): number {
-  return Math.exp(-0.5 * x * x) / Math.sqrt(2.0 * Math.PI);
-}
-
-/**
- * Standard normal cumulative distribution function (CDF).
- * Uses the Abramowitz & Stegun approximation (formula 26.2.17).
- * Accuracy: |error| < 7.5 × 10⁻⁸
- */
-export function normCDF(x: number): number {
-  if (x > 10) return 1;
-  if (x < -10) return 0;
-
-  const a1 = 0.254829592;
-  const a2 = -0.284496736;
-  const a3 = 1.421413741;
-  const a4 = -1.453152027;
-  const a5 = 1.061405429;
-  const p = 0.3275911;
-
-  const sign = x < 0 ? -1 : 1;
-  const absX = Math.abs(x);
-  const t = 1.0 / (1.0 + p * absX);
-  const y = 1.0 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-absX * absX / 2.0);
-
-  return 0.5 * (1.0 + sign * y);
-}
+export { normPDF, normCDF } from '../engine/black-scholes.js';
 
 /**
  * Arithmetic mean of an array.

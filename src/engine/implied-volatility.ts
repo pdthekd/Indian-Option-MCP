@@ -171,11 +171,14 @@ export function calculateIV(
     return null;
   }
 
-  // Check if the market price is below intrinsic value (arbitrage / bad data)
-  const intrinsic =
-    type === 'CE' ? Math.max(S - K, 0) : Math.max(K - S, 0);
-  // Allow a small tolerance for bid-ask around intrinsic
-  if (marketPrice < intrinsic - TOLERANCE * 100) {
+  // European no-arbitrage LOWER bound uses DISCOUNTED values:
+  //   call ≥ max(S·e^(−qT) − K·e^(−rT), 0), put ≥ max(K·e^(−rT) − S·e^(−qT), 0).
+  // (Undiscounted intrinsic wrongly rejected valid deep-ITM European puts.)
+  const fwdS = S * Math.exp(-q * T);
+  const pvK = K * Math.exp(-r * T);
+  const lowerBound = type === 'CE' ? Math.max(fwdS - pvK, 0) : Math.max(pvK - fwdS, 0);
+  // Allow a small tolerance for bid-ask around the bound
+  if (marketPrice < lowerBound - TOLERANCE * 100) {
     return null;
   }
 

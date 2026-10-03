@@ -31,6 +31,15 @@
 
 ---
 
+> [!WARNING]
+> **Status of this fork (audit branch, 2026-10-03): analytics only — NOT validated for trading.**
+> An audit found and fixed critical defects (e.g. naked short calls reported with a finite max loss,
+> mixed-expiry chains, missing values shown as 0). Remaining blockers are listed in
+> [docs/LIVE_TRADING_READINESS.md](docs/LIVE_TRADING_READINESS.md) (decision: **NO-GO** for live trading).
+> Lot sizes, holiday calendars, margin estimates and several charge rates are **unverified**.
+> No strategy here has evidence of positive NET expectancy after costs. Not investment advice.
+> See [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) and [docs/FUNCTIONAL_AUDIT.md](docs/FUNCTIONAL_AUDIT.md).
+
 ## 🆓 Free Alternative to Sensibull & Opstra
 
 | Feature | Sensibull (₹1500/mo) | Opstra (₹999/mo) | **Indian Option MCP (Free)** |
@@ -69,9 +78,11 @@ Most NSE tools and scrapers **break after 3:30 PM IST** because NSE takes down t
 | Time | Data Source | What You Get |
 |:---|:---|:---|
 | **9:15 AM – 3:30 PM** (Market Open) | Primary NSE API | Full chain with IV, Greeks, change-in-OI, bid/ask |
-| **After 3:30 PM** (Market Closed) | Fallback derivatives API | Closing snapshot with OI, LTP, volume, strike prices |
+| **After 3:30 PM** (Market Closed) | Fallback derivatives API | **Partial** closing snapshot (most-active contracts only) with OI, LTP, volume — **no** IV, bid/ask or change-in-OI |
 
-> **No configuration needed.** The fallback is automatic. You always get data, any time of day.
+> Every chain carries a **DATA QUALITY** banner (`FULL` / `DEGRADED` / `STALE` / `UNAVAILABLE`).
+> Fallback data is `DEGRADED`; anything outside market hours is `STALE`. Missing fields print as
+> `n/a`, never as 0. Do not draw conclusions from non-`FULL` data.
 
 ---
 
@@ -146,33 +157,22 @@ Most NSE tools and scrapers **break after 3:30 PM IST** because NSE takes down t
 
 ## ⚡ Quick Start
 
-### Option 1: npx (Recommended — Zero Install)
+### ⚠️ Do not use `npx -y indian-option-mcp`
 
-Add this to your Claude Desktop config:
+That runs whatever the **upstream** npm package owner last published — not the code in this
+repository — with the confirmation prompt suppressed. See
+[docs/SECURITY_AUDIT.md §F](docs/SECURITY_AUDIT.md).
 
-```jsonc
-{
-  "mcpServers": {
-    "indian-options": {
-      "command": "npx",
-      "args": ["-y", "indian-option-mcp"]
-    }
-  }
-}
-```
-
-Restart Claude Desktop. Done. 🎉
-
-### Option 2: Clone & Build
+### Build from an exact, audited commit
 
 ```bash
-# Clone the repository
-git clone https://github.com/devag7/Indian-Option-MCP.git
+git clone https://github.com/pdthekd/Indian-Option-MCP.git
 cd Indian-Option-MCP
-
-# Install dependencies & build
-npm install
-npm run build
+git checkout <audited-commit-sha>
+npm ci --ignore-scripts   # exact lockfile versions, no install scripts
+npm test                  # 140+ tests, offline
+npm run build             # tsc + pinned local esbuild (no network downloads)
+npm run test:mcp          # stdio smoke test of the built bundle
 ```
 
 ### Configure Claude Desktop
@@ -330,7 +330,6 @@ For traders with a Zerodha account who want faster data and deeper order book:
 ```bash
 DATA_PROVIDER=zerodha
 KITE_API_KEY=your_api_key
-KITE_API_SECRET=your_api_secret
 KITE_ACCESS_TOKEN=your_access_token  # refreshed daily
 ```
 
@@ -350,7 +349,7 @@ cp .env.example .env
 |:---------|:--------|:------------|
 | `DATA_PROVIDER` | `nse` | Data source — `nse` (free) or `zerodha` (needs API key) |
 | `KITE_API_KEY` | — | Zerodha Kite API key (only if `zerodha`) |
-| `KITE_API_SECRET` | — | Zerodha Kite API secret (only if `zerodha`) |
+| `KITE_API_SECRET` | — | **Not read.** Do the Kite login/session exchange outside this process; never put the API secret in the MCP config |
 | `KITE_ACCESS_TOKEN` | — | Zerodha session token, refreshed daily (only if `zerodha`) |
 | `CACHE_TTL_SECONDS` | `5` | Real-time data cache lifetime in seconds |
 | `INSTRUMENT_CACHE_TTL_HOURS` | `12` | Instrument master cache lifetime in hours |

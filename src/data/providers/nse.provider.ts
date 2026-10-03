@@ -19,6 +19,8 @@ import {
   CandleData,
   Instrument,
 } from './base.provider.js';
+import { num, positive, sumField } from '../quality.js';
+import { normalizeExpiry, parseSourceTimestamp } from '../../utils/time.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -321,6 +323,10 @@ export class NSEProvider extends BaseProvider {
     expiryDate?: string,
   ): Promise<OptionChainData> {
     const upperSymbol = symbol.toUpperCase();
+    if (expiryDate !== undefined && normalizeExpiry(expiryDate) === null) {
+      throw new Error(`Invalid expiry "${expiryDate}". Use YYYY-MM-DD or DD-Mon-YYYY.`);
+    }
+    let primaryError = 'empty response';
 
     // ── Primary endpoint (available during & shortly after market hours) ──
     try {
@@ -336,6 +342,7 @@ export class NSEProvider extends BaseProvider {
       console.error('[NSE] Primary option chain returned empty data — trying fallback.');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
+      primaryError = msg;
       console.error(`[NSE] Primary option chain failed: ${msg} — trying fallback endpoint.`);
     }
 
@@ -347,8 +354,7 @@ export class NSEProvider extends BaseProvider {
       console.error(`[NSE] Fallback endpoint also failed: ${msg}`);
       throw new Error(
         `NSE option chain unavailable for ${upperSymbol}. ` +
-        `Both primary and fallback APIs returned errors. ` +
-        `NSE may be undergoing maintenance. Try again in a few minutes.`,
+        `Primary: ${primaryError}. Fallback: ${msg}.`,
       );
     }
   }
@@ -391,46 +397,33 @@ export class NSEProvider extends BaseProvider {
       throw new Error(`No option data found for ${symbol} in derivatives feed`);
     }
 
-    // Collect unique expiry dates and strike prices
-    const expirySet = new Set<string>();
-    const strikeSet = new Set<number>();
+    // Collect unique expiry dates; drop rows without a usable strike/expiry.
+    const usable = symbolRows.filter(
+      (r) => positive(r.strikePrice) !== null && normalizeExpiry(r.expiryDate ?? '') !== null,
+    );
+    const allExpiryDates = Array.from(
+      new Set(usable.map((r) => normalizeExpiry(r.expiryDate ?? '') as string)),
+    ).sort();
     let underlyingValue = 0;
-
-    for (const row of symbolRows) {
-      expirySet.add(parseNSEDate(row.expiryDate ?? ''));
-      strikeSet.add(row.strikePrice ?? 0);
-      if (row.underlyingValue && row.underlyingValue > 0) {
-        underlyingValue = row.underlyingValue;
-      }
+    for (const row of usable) {
+      const uv = positive(row.underlyingValue);
+      if (uv !== null) underlyingValue = uv;
     }
 
-    const allExpiryDates = Array.from(expirySet).sort();
-    const allStrikePrices = Array.from(strikeSet).sort((a, b) => a - b);
+    const targetExpiry = this.resolveExpiry(filterExpiry, allExpiryDates);
 
-    // Determine target expiry
-    let targetExpiry: string | undefined;
-    if (filterExpiry) {
-      targetExpiry = filterExpiry.includes('-') && filterExpiry.length === 10
-        ? filterExpiry
-        : parseNSEDate(filterExpiry);
-    } else {
-      // Use nearest expiry
-      targetExpiry = allExpiryDates[0];
-    }
+    // Build option chain rows for the single resolved expiry.
+    const rowMap = new Map<number, OptionChainRow>();
 
-    // Build option chain rows
-    const rowMap = new Map<string, OptionChainRow>();
+    for (const entry of usable) {
+      const iso = normalizeExpiry(entry.expiryDate ?? '') as string;
+      if (iso !== targetExpiry) continue;
 
-    for (const entry of symbolRows) {
-      const iso = parseNSEDate(entry.expiryDate ?? '');
-      if (targetExpiry && iso !== targetExpiry) continue;
-
-      const strike = entry.strikePrice ?? 0;
-      const key = `${iso}|${strike}`;
-      let row = rowMap.get(key);
+      const strike = entry.strikePrice as number;
+      let row = rowMap.get(strike);
       if (!row) {
         row = { strikePrice: strike, expiryDate: iso };
-        rowMap.set(key, row);
+        rowMap.set(strike, row);
       }
 
       const optType = entry.optionType?.toUpperCase().startsWith('C') ? 'CE' : 'PE';
@@ -438,18 +431,18 @@ export class NSEProvider extends BaseProvider {
         strikePrice: strike,
         expiryDate: iso,
         optionType: optType,
-        lastPrice: entry.lastPrice ?? 0,
-        change: entry.change ?? 0,
-        pChange: entry.pChange ?? 0,
-        openInterest: entry.openInterest ?? 0,
-        changeinOpenInterest: 0, // not available in this endpoint
-        totalTradedVolume: entry.volume ?? 0,
-        impliedVolatility: 0, // not available in this endpoint
-        bidQty: 0,
-        bidPrice: 0,
-        askQty: 0,
-        askPrice: 0,
-        underlyingValue: entry.underlyingValue ?? underlyingValue,
+        lastPrice: positive(entry.lastPrice),
+        change: num(entry.change),
+        pChange: num(entry.pChange),
+        openInterest: num(entry.openInterest),
+        changeinOpenInterest: null, // not published by this endpoint
+        totalTradedVolume: num(entry.volume),
+        impliedVolatility: null, // not published by this endpoint
+        bidQty: null,
+        bidPrice: null,
+        askQty: null,
+        askPrice: null,
+        underlyingValue: positive(entry.underlyingValue),
       };
 
       if (optType === 'CE') row.CE = leg;
@@ -460,33 +453,57 @@ export class NSEProvider extends BaseProvider {
       (a, b) => a.strikePrice - b.strikePrice,
     );
 
-    // Compute totals
-    let totalCEOI = 0, totalPEOI = 0, totalCEVol = 0, totalPEVol = 0;
-    for (const r of rows) {
-      totalCEOI += r.CE?.openInterest ?? 0;
-      totalPEOI += r.PE?.openInterest ?? 0;
-      totalCEVol += r.CE?.totalTradedVolume ?? 0;
-      totalPEVol += r.PE?.totalTradedVolume ?? 0;
-    }
-
     console.error(
-      `[NSE] Fallback chain: ${rows.length} strikes, expiry=${targetExpiry}, ` +
-      `underlying=${underlyingValue} (IV not available in this endpoint)`,
+      `[NSE] Fallback chain: ${rows.length} strikes, expiry=${targetExpiry} (DEGRADED: partial chain, no IV/bid/ask)`,
     );
 
+    const asOf = parseSourceTimestamp(raw.timestamp);
     return {
       symbol,
       underlyingValue,
-      expiryDate: targetExpiry ?? allExpiryDates[0] ?? '',
+      expiryDate: targetExpiry,
       expiryDates: allExpiryDates,
-      strikePrices: allStrikePrices,
+      strikePrices: rows.map((r) => r.strikePrice),
       rows,
-      timestamp: raw.timestamp ?? new Date().toISOString(),
-      totalCEOpenInterest: totalCEOI,
-      totalPEOpenInterest: totalPEOI,
-      totalCEVolume: totalCEVol,
-      totalPEVolume: totalPEVol,
+      timestamp: raw.timestamp ?? '',
+      dataQuality: {
+        status: rows.length ? 'DEGRADED' : 'UNAVAILABLE',
+        source: 'nse-fallback',
+        unavailableFields: ['impliedVolatility', 'bidPrice', 'askPrice', 'bidQty', 'askQty', 'changeinOpenInterest'],
+        reasons: [
+          'Fallback endpoint (/api/liveEquity-derivatives) lists only the most-active contracts — the chain is INCOMPLETE. ' +
+            'Max pain, PCR and OI distribution computed on it are not comparable to full-chain values.',
+        ],
+        asOf: asOf ? asOf.toISOString() : null,
+        fetchedAt: new Date().toISOString(),
+      },
+      totalCEOpenInterest: sumField(rows, 'CE', 'openInterest') ?? 0,
+      totalPEOpenInterest: sumField(rows, 'PE', 'openInterest') ?? 0,
+      totalCEVolume: sumField(rows, 'CE', 'totalTradedVolume') ?? 0,
+      totalPEVolume: sumField(rows, 'PE', 'totalTradedVolume') ?? 0,
     };
+  }
+
+  /**
+   * Resolve the requested expiry against the source's list. Throws if the
+   * requested expiry is not listed (instead of silently returning an empty or
+   * mixed chain). Defaults to the nearest listed expiry.
+   */
+  private resolveExpiry(requested: string | undefined, available: string[]): string {
+    if (available.length === 0) {
+      throw new Error('Source returned no expiry dates.');
+    }
+    if (!requested) return available[0];
+    const norm = normalizeExpiry(requested);
+    if (!norm) {
+      throw new Error(`Invalid expiry "${requested}". Use YYYY-MM-DD or DD-Mon-YYYY.`);
+    }
+    if (!available.includes(norm)) {
+      throw new Error(
+        `Expiry ${norm} is not listed by the source. Available: ${available.slice(0, 12).join(', ')}`,
+      );
+    }
+    return norm;
   }
 
   async getQuote(symbol: string): Promise<QuoteData> {
@@ -639,88 +656,60 @@ export class NSEProvider extends BaseProvider {
     filterExpiry?: string,
   ): OptionChainData {
     const records = raw.records ?? {};
-    const filtered = raw.filtered ?? {};
 
-    const allExpiryDates = (records.expiryDates ?? []).map(parseNSEDate);
-    const allStrikePrices = (records.strikePrices ?? []) as number[];
-    const underlyingValue =
-      typeof records.underlyingValue === 'number'
-        ? records.underlyingValue
-        : 0;
+    // NSE's records.data contains rows for EVERY listed expiry. We always
+    // resolve exactly one expiry and filter to it, and we never use
+    // `filtered.CE/PE.totOI` (NSE computes those for the nearest expiry only).
+    const allExpiryDates = (records.expiryDates ?? [])
+      .map((d) => normalizeExpiry(d))
+      .filter((d): d is string => d !== null)
+      .sort();
+    const underlyingValue = positive(records.underlyingValue) ?? 0;
+    const targetExpiry = this.resolveExpiry(filterExpiry, allExpiryDates);
 
-    // Determine the effective expiry to use.
-    let targetExpiry: string | undefined;
-    if (filterExpiry) {
-      // Normalise: the caller might pass ISO or NSE format.
-      targetExpiry = filterExpiry.includes('-') && filterExpiry.length === 10
-        ? filterExpiry
-        : parseNSEDate(filterExpiry);
-    }
-
-    // Choose between records.data (all) and filtered.data (near-money).
-    const dataArray: NseOptionChainRow[] =
-      records.data ?? filtered.data ?? [];
-
-    const rowMap = new Map<string, OptionChainRow>();
+    const dataArray: NseOptionChainRow[] = records.data ?? [];
+    const rowMap = new Map<number, OptionChainRow>();
 
     for (const entry of dataArray) {
-      const iso = parseNSEDate(entry.expiryDate);
-      if (targetExpiry && iso !== targetExpiry) continue;
+      const iso = normalizeExpiry(entry.expiryDate ?? '');
+      if (iso !== targetExpiry) continue;
+      if (positive(entry.strikePrice) === null) continue;
 
-      const key = `${iso}|${entry.strikePrice}`;
-      let row = rowMap.get(key);
+      let row = rowMap.get(entry.strikePrice);
       if (!row) {
         row = { strikePrice: entry.strikePrice, expiryDate: iso };
-        rowMap.set(key, row);
+        rowMap.set(entry.strikePrice, row);
       }
 
-      if (entry.CE) row.CE = this.mapOptionLeg(entry.CE, 'CE', iso);
-      if (entry.PE) row.PE = this.mapOptionLeg(entry.PE, 'PE', iso);
+      if (entry.CE) row.CE = this.mapOptionLeg(entry.CE, 'CE', iso, entry.strikePrice);
+      if (entry.PE) row.PE = this.mapOptionLeg(entry.PE, 'PE', iso, entry.strikePrice);
     }
 
     const rows = Array.from(rowMap.values()).sort(
       (a, b) => a.strikePrice - b.strikePrice,
     );
 
-    const effectiveExpiry = targetExpiry ?? allExpiryDates[0] ?? '';
-
-    // Totals – prefer the filtered aggregates when available.
-    let totalCEOI = 0;
-    let totalPEOI = 0;
-    let totalCEVol = 0;
-    let totalPEVol = 0;
-
-    if (filtered.CE) {
-      totalCEOI = filtered.CE.totOI ?? 0;
-      totalCEVol = filtered.CE.totVol ?? 0;
-    }
-    if (filtered.PE) {
-      totalPEOI = filtered.PE.totOI ?? 0;
-      totalPEVol = filtered.PE.totVol ?? 0;
-    }
-
-    // If totals are zero (e.g. we filtered to a specific expiry), compute from rows.
-    if (totalCEOI === 0 && totalPEOI === 0) {
-      for (const r of rows) {
-        totalCEOI += r.CE?.openInterest ?? 0;
-        totalPEOI += r.PE?.openInterest ?? 0;
-        totalCEVol += r.CE?.totalTradedVolume ?? 0;
-        totalPEVol += r.PE?.totalTradedVolume ?? 0;
-      }
-    }
-
+    const asOf = parseSourceTimestamp(records.timestamp);
     return {
       symbol,
       underlyingValue,
-      expiryDate: effectiveExpiry,
+      expiryDate: targetExpiry,
       expiryDates: allExpiryDates,
-      strikePrices: allStrikePrices,
+      strikePrices: rows.map((r) => r.strikePrice),
       rows,
-      timestamp: records.timestamp ?? new Date().toISOString(),
-      totalCEOpenInterest: totalCEOI,
-      totalPEOpenInterest: totalPEOI,
-      totalCEVolume: totalCEVol,
-      totalPEVolume: totalPEVol,
+      timestamp: records.timestamp ?? '',
+      dataQuality: {
+        status: rows.length ? 'FULL' : 'UNAVAILABLE',
+        source: 'nse-primary',
+        unavailableFields: [],
+        reasons: [],
+        asOf: asOf ? asOf.toISOString() : null,
+        fetchedAt: new Date().toISOString(),
+      },
+      totalCEOpenInterest: sumField(rows, 'CE', 'openInterest') ?? 0,
+      totalPEOpenInterest: sumField(rows, 'PE', 'openInterest') ?? 0,
+      totalCEVolume: sumField(rows, 'CE', 'totalTradedVolume') ?? 0,
+      totalPEVolume: sumField(rows, 'PE', 'totalTradedVolume') ?? 0,
     };
   }
 
@@ -728,23 +717,25 @@ export class NSEProvider extends BaseProvider {
     leg: NseOptionLeg,
     type: 'CE' | 'PE',
     expiryIso: string,
+    strike: number,
   ): OptionData {
+    // NSE publishes 0 for "no trade / no quote / no IV"; those become null.
     return {
-      strikePrice: leg.strikePrice ?? 0,
+      strikePrice: strike,
       expiryDate: expiryIso,
       optionType: type,
-      lastPrice: leg.lastPrice ?? 0,
-      change: leg.change ?? 0,
-      pChange: leg.pChange ?? 0,
-      openInterest: leg.openInterest ?? 0,
-      changeinOpenInterest: leg.changeinOpenInterest ?? 0,
-      totalTradedVolume: leg.totalTradedVolume ?? 0,
-      impliedVolatility: leg.impliedVolatility ?? 0,
-      bidQty: leg.bidQty ?? 0,
-      bidPrice: leg.bidprice ?? leg.bidPrice ?? 0,
-      askQty: leg.askQty ?? 0,
-      askPrice: leg.askPrice ?? 0,
-      underlyingValue: leg.underlyingValue ?? 0,
+      lastPrice: positive(leg.lastPrice),
+      change: num(leg.change),
+      pChange: num(leg.pChange),
+      openInterest: num(leg.openInterest),
+      changeinOpenInterest: num(leg.changeinOpenInterest),
+      totalTradedVolume: num(leg.totalTradedVolume),
+      impliedVolatility: positive(leg.impliedVolatility),
+      bidQty: positive(leg.bidQty),
+      bidPrice: positive(leg.bidprice ?? leg.bidPrice),
+      askQty: positive(leg.askQty),
+      askPrice: positive(leg.askPrice),
+      underlyingValue: positive(leg.underlyingValue),
     };
   }
 }

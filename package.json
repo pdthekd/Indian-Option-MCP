@@ -17,18 +17,19 @@
   ],
   "scripts": {
     "build": "tsc && npm run bundle",
-    "bundle": "npx -y esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bundle.mjs",
+    "bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bundle.mjs",
     "dev": "tsc --watch",
     "start": "node dist/bundle.mjs",
-    "inspect": "npx @modelcontextprotocol/inspector node dist/bundle.mjs",
-    "clean": "rm -rf dist",
+    "inspect": "echo \"Run MCP Inspector from a pinned, locally installed copy; see docs/MCP_TEST_REPORT.md\" && exit 1",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "lint": "tsc --noEmit",
     "prepublishOnly": "npm run clean && npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "release:patch": "npm version patch && git push && git push --tags",
     "release:minor": "npm version minor && git push && git push --tags",
-    "release:major": "npm version major && git push && git push --tags"
+    "release:major": "npm version major && git push && git push --tags",
+    "test:mcp": "node scripts/mcp-smoke.mjs"
   },
   "keywords": [
     "mcp",
@@ -70,6 +71,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.18",
+    "esbuild": "0.25.12",
     "typescript": "^5.8.3",
     "vitest": "^3.2.1"
   },

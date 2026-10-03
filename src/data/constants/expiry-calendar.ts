@@ -154,18 +154,36 @@ function shiftToPreviousTradingDay(date: Date): Date {
  * | MIDCPNIFTY  | Monday    | 1             |
  * | SENSEX      | Friday    | 5             |
  */
+// ┌──────────────────────────────────────────────────────────────────────────┐
+// │ RULES IN FORCE FROM 2025-09-01 (SEBI: one expiry day per exchange; NSE   │
+// │ chose Tuesday, BSE Thursday; one weekly benchmark index per exchange).   │
+// │ The table above describes the PREVIOUS regime and is kept for history.   │
+// │ These computed dates are NOT authoritative: always prefer the expiry     │
+// │ list published by the exchange / broker instrument master.               │
+// └──────────────────────────────────────────────────────────────────────────┘
 const WEEKLY_EXPIRY_DAY: Readonly<Record<string, number>> = {
-  NIFTY: 4,       // Thursday
-  BANKNIFTY: 3,   // Wednesday
-  FINNIFTY: 2,    // Tuesday
-  MIDCPNIFTY: 1,  // Monday
-  SENSEX: 5,      // Friday
+  NIFTY: 2,       // Tuesday (NSE)
+  SENSEX: 4,      // Thursday (BSE)
 };
 
+/** Symbols whose derivatives are listed on BSE (monthly expiry on Thursday). */
+const BSE_SYMBOLS: ReadonlySet<string> = new Set(['SENSEX', 'BANKEX']);
+
 /**
- * Monthly expiry day-of-week — last **Thursday** of the month for all symbols.
+ * Monthly expiry day-of-week: last Tuesday (NSE) / last Thursday (BSE).
  */
-const MONTHLY_EXPIRY_DOW = 4; // Thursday
+const MONTHLY_EXPIRY_DOW = 2; // Tuesday (NSE)
+const BSE_MONTHLY_EXPIRY_DOW = 4; // Thursday (BSE)
+
+function monthlyDow(symbol: string): number {
+  return BSE_SYMBOLS.has(symbol) ? BSE_MONTHLY_EXPIRY_DOW : MONTHLY_EXPIRY_DOW;
+}
+
+/** Human-readable statement of the rules used by this module. */
+export const EXPIRY_RULES_NOTE =
+  'Computed from rules in force since 2025-09-01 (NSE: NIFTY weekly Tuesday, monthly = last Tuesday; ' +
+  'BANKNIFTY/FINNIFTY/MIDCPNIFTY monthly only; BSE SENSEX weekly Thursday) with an UNVERIFIED local holiday list. ' +
+  'Not authoritative — use the exchange/broker expiry list.';
 
 // ---------------------------------------------------------------------------
 // Core Expiry Computation
@@ -248,7 +266,7 @@ export function getNextExpiry(
   let month = today.getUTCMonth();
 
   let candidate = shiftToPreviousTradingDay(
-    lastDayOfWeekInMonth(year, month, MONTHLY_EXPIRY_DOW),
+    lastDayOfWeekInMonth(year, month, monthlyDow(upper)),
   );
 
   if (candidate < today) {
@@ -259,7 +277,7 @@ export function getNextExpiry(
       year += 1;
     }
     candidate = shiftToPreviousTradingDay(
-      lastDayOfWeekInMonth(year, month, MONTHLY_EXPIRY_DOW),
+      lastDayOfWeekInMonth(year, month, monthlyDow(upper)),
     );
   }
 
@@ -346,7 +364,7 @@ export function getAllExpiries(symbol: string, months = 3): Date[] {
 
   for (let i = 0; i < months + 1; i++) {
     const monthly = shiftToPreviousTradingDay(
-      lastDayOfWeekInMonth(y, m, MONTHLY_EXPIRY_DOW),
+      lastDayOfWeekInMonth(y, m, monthlyDow(upper)),
     );
     const key = toDateKey(monthly);
     if (!seen.has(key) && monthly >= todayUtc) {
@@ -411,15 +429,12 @@ export function isExpiryDay(date: Date = new Date()): boolean {
     }
   }
 
-  // Check if it's the monthly expiry (last Thursday, possibly shifted)
-  const monthlyTarget = lastDayOfWeekInMonth(
-    d.getUTCFullYear(),
-    d.getUTCMonth(),
-    MONTHLY_EXPIRY_DOW,
-  );
-  const adjustedMonthly = shiftToPreviousTradingDay(monthlyTarget);
-  if (toDateKey(adjustedMonthly) === toDateKey(d)) {
-    return true;
+  // Monthly expiry (last Tuesday NSE / last Thursday BSE, possibly shifted)
+  for (const dowM of [MONTHLY_EXPIRY_DOW, BSE_MONTHLY_EXPIRY_DOW]) {
+    const monthlyTarget = lastDayOfWeekInMonth(d.getUTCFullYear(), d.getUTCMonth(), dowM);
+    if (toDateKey(shiftToPreviousTradingDay(monthlyTarget)) === toDateKey(d)) {
+      return true;
+    }
   }
 
   return false;
