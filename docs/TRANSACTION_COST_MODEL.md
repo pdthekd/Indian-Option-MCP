@@ -74,8 +74,9 @@ captured by reconciliation (actual charges replace modelled ones in the PnL engi
 - BSE (SENSEX/BANKEX) schedules not modelled — engine throws for non-NSE.
 - Physically-settled stock option exercise/assignment not modelled — throws.
 - Futures partial fills: brokerage charged on the first fill only (approximation).
-- DP charges, call-and-trade fees, auto-square-off charges, interest on margin shortfall,
-  and broker-specific extras are not modelled.
+- Dealer / auto square-off fee is modelled but only applied when an order is flagged
+  `dealerPlaced`; nothing detects a broker auto square-off automatically yet.
+- DP charges, interest on margin shortfall and other broker-specific extras are not modelled.
 - Market impact is not modelled beyond the slippage models (TICKS, BPS, SPREAD_FRACTION).
 
 ## Example (from tests)
