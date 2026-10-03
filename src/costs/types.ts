@@ -11,6 +11,8 @@ export type Exchange = 'NSE';
 export type VerificationLevel =
   /** Read from the exchange / regulator / statute itself. */
   | 'OFFICIAL'
+  /** Model reproduced the user's actual broker contract notes (see the source description for scope). */
+  | 'CONTRACT_NOTE_RECONCILED'
   /** Read from a broker's published charges page; not cross-checked with the primary source. */
   | 'BROKER_PUBLISHED'
   /** Derived, inferred or from secondary sources — must be verified before live use. */
@@ -77,6 +79,16 @@ export interface BrokeragePlan {
   physicalDeliveryPctOfContractValue: number;
   /** Extra fee per order placed via dealer, incl. broker auto square-off (₹, + GST). */
   dealerOrderFee: number;
+  /**
+   * How the broker aggregates and rounds charges on a contract note (one note
+   * per trade date per segment). Used by calculateContractNoteCosts.
+   */
+  contractNote: {
+    sttRounding: 'RUPEE_HALF_UP' | 'PAISA';
+    stampDutyRounding: 'RUPEE_HALF_UP' | 'PAISA';
+    /** Exchange, SEBI and GST are rounded to the paisa on the day's aggregate. */
+    gstSplit: 'CGST_SGST' | 'IGST';
+  };
   sources: SourceRef[];
   notes: string[];
 }

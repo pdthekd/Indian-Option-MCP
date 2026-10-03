@@ -46,6 +46,18 @@ export const NSE_FO_SCHEDULES: readonly ChargeSchedule[] = Object.freeze([
     gstOn: ['brokerage', 'exchangeTxn', 'ipft', 'sebiFee'],
     sources: [
       {
+        description:
+          'OPTIONS rates reconciled against the account holder\'s own Zerodha contract notes, 41 trading days ' +
+          '2025-05-09 → 2025-08-14 (310 NIFTY option trades, ₹25.3 lakh premium turnover): STT 0.10 % on sell premium, ' +
+          'exchange transaction 0.03553 % (no separate IPFT), SEBI ₹10/crore, stamp 0.003 % buy, GST 18 % on ' +
+          'brokerage + exchange + SEBI. With contract-note rounding the model gives ₹8,624.23 vs actual ₹8,624.25: ' +
+          '40/41 days exact on every component; 1 day GST differs by ₹0.02 (unexplained). ' +
+          'NOT covered: futures, exercise STT, dates outside that window.',
+        url: 'local: contract notes (not stored in repository)',
+        retrieved: '2026-10-03',
+        verification: 'CONTRACT_NOTE_RECONCILED',
+      },
+      {
         description: 'STT rates per Finance (No. 2) Act 2024, effective 2024-10-01 (secondary reporting)',
         url: 'https://cleartax.in/s/securities-transaction-tax-stt',
         retrieved: '2026-10-03',

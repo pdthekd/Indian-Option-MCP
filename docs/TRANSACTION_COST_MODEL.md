@@ -53,21 +53,30 @@ Superseded entries are kept in `SUPERSEDED_*` exports for audit and are never us
 
 | Item | Source | Level |
 |---|---|---|
-| Current STT, exchange charges, IPFT, SEBI, stamp, GST base, brokerage, settlement brokerage, dealer fee | zerodha.com/charges (Equity tab + footnotes), read 2026-10-03 | BROKER_PUBLISHED |
+| **Options (NSE): STT 0.10 % sell, exchange 0.03553 %, no options IPFT, SEBI ₹10/cr, stamp 0.003 % buy, GST 18 % on brokerage+exchange+SEBI, ₹20 per executed order, ₹0 clearing, contract-note rounding** | Own Zerodha contract notes, 41 days 2025-05-09 → 2025-08-14, 310 NIFTY option trades. Model ₹8,624.23 vs actual ₹8,624.25; 40/41 days exact on every component | **CONTRACT_NOTE_RECONCILED** (for that period and instrument type) |
+| Current (post-2026-04-01) STT 0.15 %, futures charges, IPFT on futures, settlement brokerage, dealer fee | zerodha.com/charges (Equity tab + footnotes), read 2026-10-03 | BROKER_PUBLISHED — not yet seen on a contract note |
 | Budget 2026 STT change and 2026-04-01 effective date | secondary reporting (ICICI Direct, ClearTax) | UNVERIFIED |
 | ₹20 settlement brokerage amount and that it applies to OTM expiry | page lists "expired" contracts but no amount | UNVERIFIED (conservative) |
-| Exchange charges before 2026-04-01 | assumed equal to current | UNVERIFIED |
+| Options exchange charge before 2025-05-09 | assumed equal to the reconciled rate | UNVERIFIED |
 | Settlement: no exchange/SEBI/stamp charges | assumption | UNVERIFIED |
-| Contract-note rounding | not documented on the page | UNVERIFIED |
+| One day with GST ₹0.02 above model | unexplained | OPEN |
 
 **Before any live use:** verify each item against the Finance Act 2026, NSE circulars and the
 broker's contract notes, then promote the level to `OFFICIAL` in a new schedule version.
 
 ## Rounding
 
-Each component is rounded to the paisa per order. Contract notes may round differently
-(e.g. STT at contract-note level). Differences are expected to be < ₹1 per note and must be
-captured by reconciliation (actual charges replace modelled ones in the PnL engine).
+Two functions, by purpose:
+
+- `calculateOrderCosts` — one order, every component rounded to the paisa. Use for the marginal
+  cost of a single decision.
+- `calculateContractNoteCosts` — all fills of one trade date aggregated the way Zerodha notes do
+  (observed on real notes): brokerage once per executed order; **STT rounded to the paisa, then to
+  the whole rupee (half up)**; **stamp duty rounded to the whole rupee**; exchange and SEBI rounded
+  once on the aggregate; GST shown as CGST 9 % + SGST 9 %, each rounded to the paisa.
+
+The two differ only by rounding (well under ₹1 per day on the reconciled sample). Actual
+contract-note charges, when available, replace modelled ones in the PnL engine.
 
 ## Known limitations
 

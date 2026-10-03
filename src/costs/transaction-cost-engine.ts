@@ -194,6 +194,104 @@ export function calculateOrderCosts(order: OrderForCosts, opts: CostOptions = {}
   };
 }
 
+/** One fill on a contract note. Fills sharing an orderId are one executed order. */
+export interface ContractNoteFill {
+  orderId: string;
+  instrument: 'OPTION' | 'FUTURE';
+  side: Side;
+  quantity: number;
+  price: number;
+}
+
+function roundRupeeHalfUp(x: number): number {
+  return Math.round(Math.round(x * 1e6) / 1e6); // de-noise float before half-up rounding
+}
+
+/**
+ * Charges exactly as a broker contract note presents them: all fills of one
+ * trade date and segment are aggregated, brokerage is charged once per
+ * executed order, and each statutory component is rounded once on the
+ * aggregate according to the plan's `contractNote` rules.
+ *
+ * Use this to estimate or reconcile a day's charges. Per-order
+ * calculateOrderCosts() remains the right tool for marginal costs of a
+ * single decision; the two differ only by rounding (typically < ₹1 per day).
+ */
+export function calculateContractNoteCosts(
+  fills: ContractNoteFill[],
+  tradeDate: string,
+  opts: CostOptions = {},
+): CostBreakdown {
+  assertDate(tradeDate);
+  if (fills.length === 0) throw new Error('Contract note has no fills');
+  const sched = scheduleFor(tradeDate, opts.schedules);
+  const plan = brokeragePlanFor(opts.brokeragePlanId ?? DEFAULT_BROKERAGE_PLAN, tradeDate, opts.plans);
+
+  let turnover = 0, exch = 0, ipft = 0, sttBase = 0, stampBase = 0, brokerage = 0;
+  const orderTurnover = new Map<string, { instrument: 'OPTION' | 'FUTURE'; turnover: number }>();
+  for (const f of fills) {
+    if (!(f.quantity > 0) || !(f.price >= 0) || !Number.isFinite(f.price)) throw new Error(`Invalid fill in order ${f.orderId}`);
+    const t = f.quantity * f.price;
+    turnover += t;
+    const o = orderTurnover.get(f.orderId) ?? { instrument: f.instrument, turnover: 0 };
+    if (o.instrument !== f.instrument) throw new Error(`Order ${f.orderId} mixes instrument kinds`);
+    o.turnover += t;
+    orderTurnover.set(f.orderId, o);
+    if (f.instrument === 'OPTION') {
+      exch += t * sched.options.exchangeTxnOnPremium;
+      ipft += t * sched.options.ipftOnPremium;
+      if (f.side === 'SELL') sttBase += t * sched.options.sttSellOnPremium;
+      else stampBase += t * sched.options.stampDutyBuy;
+    } else {
+      exch += t * sched.futures.exchangeTxn;
+      ipft += t * sched.futures.ipft;
+      if (f.side === 'SELL') sttBase += t * sched.futures.sttSell;
+      else stampBase += t * sched.futures.stampDutyBuy;
+    }
+  }
+  for (const o of orderTurnover.values()) {
+    brokerage += o.instrument === 'OPTION'
+      ? (o.turnover === 0 ? 0 : plan.options.flatPerExecutedOrder)
+      : Math.min(o.turnover * plan.futures.percentOfTurnover, plan.futures.capPerExecutedOrder);
+  }
+
+  const cn = plan.contractNote;
+  // STT is rounded to the paisa first, then to the rupee (observed: ₹12.495 → ₹12.50 → ₹13).
+  const stt = cn.sttRounding === 'RUPEE_HALF_UP' ? roundRupeeHalfUp(round2(sttBase)) : round2(sttBase);
+  const stampDuty = cn.stampDutyRounding === 'RUPEE_HALF_UP' ? roundRupeeHalfUp(stampBase) : round2(stampBase);
+  brokerage = round2(brokerage);
+  const exchangeTxn = round2(exch);
+  const ipftR = round2(ipft);
+  const sebiFee = round2((turnover / CRORE) * sched.sebiFeePerCrore);
+  const gstBase =
+    (sched.gstOn.includes('brokerage') ? brokerage : 0) +
+    (sched.gstOn.includes('exchangeTxn') ? exchangeTxn : 0) +
+    (sched.gstOn.includes('ipft') ? ipftR : 0) +
+    (sched.gstOn.includes('sebiFee') ? sebiFee : 0);
+  const gst = cn.gstSplit === 'CGST_SGST'
+    ? 2 * round2(gstBase * (sched.gstRate / 2))
+    : round2(gstBase * sched.gstRate);
+  const totalCharges = round2(brokerage + stt + exchangeTxn + ipftR + sebiFee + stampDuty + gst);
+
+  return {
+    turnover: round2(turnover),
+    brokerage,
+    stt,
+    exchangeTxn,
+    ipft: ipftR,
+    sebiFee,
+    stampDuty,
+    gst: round2(gst),
+    slippage: 0,
+    otherCharges: 0,
+    totalCharges,
+    totalCost: totalCharges,
+    scheduleId: sched.id,
+    brokeragePlanId: plan.id,
+    assumptions: [`Contract-note aggregation for ${tradeDate}: ${orderTurnover.size} executed orders, ${fills.length} fills.`],
+  };
+}
+
 export interface ExpirySettlementForCosts {
   /** Settlement − strike (CE) or strike − settlement (PE), floored at 0. */
   intrinsicPerUnit: number;

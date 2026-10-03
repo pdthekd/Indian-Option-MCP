@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  calculateOrderCosts, calculateExpirySettlementCosts, scheduleFor, applySlippage, slippagePerUnit,
+  calculateOrderCosts, calculateExpirySettlementCosts, calculateContractNoteCosts, scheduleFor, applySlippage, slippagePerUnit,
 } from '../costs/transaction-cost-engine.js';
 import { NSE_FO_SCHEDULES, SUPERSEDED_NSE_FO_SCHEDULES } from '../config/charges/nse-fo.js';
 import type { CostBreakdown } from '../costs/types.js';
@@ -64,6 +64,48 @@ describe('option order costs (hand-computed, 2026-04-01 schedule)', () => {
   it('brokerage is per executed order', () => {
     const c = calculateOrderCosts({ instrument: 'OPTION', exchange: 'NSE', side: 'BUY', quantity: 150, price: 100, tradeDate: D, executedOrders: 2 });
     expect(c.brokerage).toBe(40);
+  });
+});
+
+describe('contract-note aggregation (rules observed in real Zerodha notes; synthetic numbers)', () => {
+  const N = '2025-06-02'; // 0.10 % STT schedule
+  it('brokerage once per executed order even with multiple fills', () => {
+    const c = calculateContractNoteCosts([
+      { orderId: 'o1', instrument: 'OPTION', side: 'BUY', quantity: 75, price: 100 },
+      { orderId: 'o1', instrument: 'OPTION', side: 'BUY', quantity: 75, price: 100 },
+      { orderId: 'o2', instrument: 'OPTION', side: 'SELL', quantity: 150, price: 101 },
+    ], N);
+    expect(c.brokerage).toBe(40);
+  });
+  it('STT rounds to paisa then rupee: ₹12.495 → ₹13', () => {
+    const c = calculateContractNoteCosts([
+      { orderId: 'b', instrument: 'OPTION', side: 'BUY', quantity: 75, price: 160 },
+      { orderId: 's', instrument: 'OPTION', side: 'SELL', quantity: 75, price: 166.6 }, // 12,495 × 0.1 % = 12.495
+    ], N);
+    expect(c.stt).toBe(13);
+  });
+  it('stamp duty rounds to the rupee on the day aggregate (₹0.36 → ₹0)', () => {
+    const c = calculateContractNoteCosts([{ orderId: 'b', instrument: 'OPTION', side: 'BUY', quantity: 75, price: 160 }], N);
+    expect(c.stampDuty).toBe(0);
+  });
+  it('exchange and SEBI rounded once on the aggregate; GST = CGST + SGST each to the paisa', () => {
+    const c = calculateContractNoteCosts([
+      { orderId: 'b', instrument: 'OPTION', side: 'BUY', quantity: 750, price: 200 },
+      { orderId: 's', instrument: 'OPTION', side: 'SELL', quantity: 750, price: 210 },
+    ], N);
+    const turnover = 750 * 410;
+    expect(c.exchangeTxn).toBe(Math.round(turnover * 0.0003553 * 100) / 100);
+    expect(c.sebiFee).toBe(Math.round((turnover / 1e7) * 10 * 100) / 100);
+    const half = Math.round((40 + c.exchangeTxn + c.sebiFee) * 0.09 * 100) / 100;
+    expect(c.gst).toBeCloseTo(2 * half, 10);
+    expect(c.stt).toBe(Math.round(750 * 210 * 0.001));
+  });
+  it('rejects empty notes and orders mixing instrument kinds', () => {
+    expect(() => calculateContractNoteCosts([], N)).toThrow();
+    expect(() => calculateContractNoteCosts([
+      { orderId: 'x', instrument: 'OPTION', side: 'BUY', quantity: 1, price: 1 },
+      { orderId: 'x', instrument: 'FUTURE', side: 'BUY', quantity: 1, price: 1 },
+    ], N)).toThrow();
   });
 });
 

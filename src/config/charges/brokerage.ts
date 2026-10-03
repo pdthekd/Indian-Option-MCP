@@ -15,7 +15,20 @@ export const BROKERAGE_PLANS: readonly BrokeragePlan[] = Object.freeze([
     expirySettlement: { flatPerContract: 20, appliesTo: ['EXERCISED', 'ASSIGNED', 'EXPIRED_OTM'] },
     physicalDeliveryPctOfContractValue: 0.0025,
     dealerOrderFee: 50,
+    contractNote: { sttRounding: 'RUPEE_HALF_UP', stampDutyRounding: 'RUPEE_HALF_UP', gstSplit: 'CGST_SGST' },
     sources: [
+      {
+        description:
+          'Reconciled against the account holder\'s own Zerodha F&O contract notes: 41 trading days (May–Aug 2025), ' +
+          '310 NIFTY option trades. Brokerage ₹20 per EXECUTED ORDER (multi-fill orders charged once) matched on all 41 days; ' +
+          'STT rounded to the paisa then to the whole rupee (half up) on each day\'s aggregate; stamp duty rounded to the ' +
+          'rupee; exchange, SEBI and GST rounded to the paisa on the aggregate; GST shown as CGST 9 % + SGST 9 %; ' +
+          'clearing charges ₹0. 40/41 days reproduced exactly; one day GST off by ₹0.02 (unexplained). ' +
+          'No position was held to expiry, so expiry-settlement brokerage is NOT verified by these notes.',
+        url: 'local: contract notes (not stored in repository)',
+        retrieved: '2026-10-03',
+        verification: 'CONTRACT_NOTE_RECONCILED',
+      },
       {
         description:
           'Zerodha charges page: options flat ₹20/executed order; futures 0.03 % or ₹20 whichever lower; ' +
@@ -43,6 +56,7 @@ export const BROKERAGE_PLANS: readonly BrokeragePlan[] = Object.freeze([
     expirySettlement: { flatPerContract: 0, appliesTo: [] },
     physicalDeliveryPctOfContractValue: 0,
     dealerOrderFee: 0,
+    contractNote: { sttRounding: 'PAISA', stampDutyRounding: 'PAISA', gstSplit: 'IGST' },
     sources: [],
     notes: ['For isolating statutory charges in tests only. Never use for strategy evaluation.'],
   },
