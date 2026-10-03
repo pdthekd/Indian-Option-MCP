@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "build": "tsc && npm run bundle",
-    "bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bundle.mjs",
+    "bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bundle.mjs && esbuild src/cli/bhavcopy.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bhavcopy-cli.mjs && esbuild src/cli/record-quotes.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/record-quotes-cli.mjs",
     "dev": "tsc --watch",
     "start": "node dist/bundle.mjs",
     "inspect": "echo \"Run MCP Inspector from a pinned, locally installed copy; see docs/MCP_TEST_REPORT.md\" && exit 1",
@@ -29,7 +29,9 @@
     "release:patch": "npm version patch && git push && git push --tags",
     "release:minor": "npm version minor && git push && git push --tags",
     "release:major": "npm version major && git push && git push --tags",
-    "test:mcp": "node scripts/mcp-smoke.mjs"
+    "test:mcp": "node scripts/mcp-smoke.mjs",
+    "history:bhavcopy": "node dist/bhavcopy-cli.mjs",
+    "history:record": "node dist/record-quotes-cli.mjs"
   },
   "keywords": [
     "mcp",

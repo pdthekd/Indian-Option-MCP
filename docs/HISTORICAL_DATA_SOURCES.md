@@ -61,6 +61,37 @@ here by downloading real data · **[S]** secondary source · **[?]** not stated.
 Licensing: all of the above are for private research; none permit redistribution. Store
 downloaded data outside the repository.
 
+## Implemented (steps 1 and 2)
+
+Both tools write to `~/.options-hq/data` (override with `OPTIONS_HQ_DATA_DIR`; a directory inside the
+repository is refused). Neither is part of the MCP server.
+
+```bash
+npm run build
+node dist/bhavcopy-cli.mjs --from 2026-09-01 --to 2026-09-30            # EOD reference data
+node dist/record-quotes-cli.mjs --symbols NIFTY,BANKNIFTY --interval 60  # bid/ask recorder (market hours)
+```
+
+- **Bhavcopy ingester** (`src/history/bhavcopy.ts`): downloads once per date (raw zip kept,
+  never overwritten; SHA-256 in `manifest.jsonl`), stores a normalised index-option extract,
+  skips weekends/official holidays, 1.5 s between requests, 400-day cap per run. Exposes an
+  end-of-day `HistoricalMarketDataProvider` whose data is treated as known only from 20:00 IST
+  (no same-day look-ahead), with `bid/ask = null`.
+- **Quote recorder** (`src/history/quote-recorder.ts`): during market hours snapshots ATM±N
+  strikes for the nearest and next expiry, writes only `FULL`-quality data, skips unchanged
+  source timestamps, keeps missing values null. `spreadStats()` summarises recorded spreads for
+  calibrating slippage models.
+
+### First finding from the bhavcopy: lot sizes change by trade date, per contract
+
+Running the lot-size cross-check over 37 downloaded files showed the expiry-keyed lot-size rule
+was wrong (e.g. NIFTY contracts expiring 2026–2029 traded at 75 in May 2025; BANKNIFTY near
+contracts were 30 while later ones were 35). Revisions roll through in stages: new contracts get
+the new size first, then existing contracts switch on a cut-over date. The lot-size model is now
+keyed by **trade date** with uniform periods derived from monthly bhavcopy samples
+(1,277 contract-days: 1,065 match, 0 mismatch, 212 in transition windows, where the day's
+bhavcopy is required and lookups otherwise fail closed).
+
 ## Open questions (need the account holder or a vendor)
 
 - Dhan data-API pricing and terms; Upstox Plus price; whether TrueData sells historical

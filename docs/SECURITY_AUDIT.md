@@ -74,8 +74,15 @@ Every runtime destination (from source and bundle):
 |---|---|---|---|
 | `www.nseindia.com` | `NSEProvider` | homepage (cookies), `/api/option-chain-indices`, `/api/option-chain-equities`, `/api/liveEquity-derivatives`, `/api/quote-equity`, `/api/allIndices`, `/api/marketStatus` | Yes (unofficial, undocumented endpoints) |
 | `api.kite.trade` | `ZerodhaProvider` | `/instruments`, `/quote`, `/quote/ltp`, `/instruments/historical/...` | Yes (only if `DATA_PROVIDER=zerodha`) |
+| `nsearchives.nseindia.com` | `history/bhavcopy.ts` (CLI only, not the MCP server) | F&O bhavcopy downloads; `redirect: error`, 60 s timeout, 1.5 s spacing | Yes |
 
 Build/infra only: `registry.npmjs.org` (npm ci / npx), `github.com` (Actions).
+
+**Filesystem writes (added after baseline):** only the CLI tools `dist/bhavcopy-cli.mjs` and
+`dist/record-quotes-cli.mjs` write files, under the data root (`~/.options-hq/data` or
+`OPTIONS_HQ_DATA_DIR`), which must lie outside the repository (enforced). Paths are built from
+validated dates/symbols, never from MCP tool input. The MCP server bundle contains no file-writing
+code (verified by inspecting `dist/bundle.mjs`).
 Strings such as `raw.githubusercontent.com`, `json-schema.org` in the bundle are ajv
 `$id`/`$ref` identifiers, never fetched. **No unexpected destination found.**
 
