@@ -11,7 +11,7 @@
  * It cannot reach any real broker or exchange.
  */
 
-import { calculateOrderCosts, calculateExerciseCosts, slippagePerUnit, type CostOptions } from '../costs/transaction-cost-engine.js';
+import { calculateOrderCosts, calculateExpirySettlementCosts, slippagePerUnit, type CostOptions } from '../costs/transaction-cost-engine.js';
 import type { CostBreakdown, SlippageModel } from '../costs/types.js';
 import { computeTradePnL, markToMarket, type Execution, type TradePnL } from '../pnl/pnl-engine.js';
 import { istDate } from '../utils/time.js';
@@ -267,9 +267,10 @@ export class PaperBroker implements BrokerAdapter {
   }
 
   /**
-   * Cash-settle an index option position at expiry. Long ITM positions pay
-   * STT on intrinsic value via the cost engine; the closed trade is
-   * evaluated by the PnL engine.
+   * Cash-settle an index option position at expiry. Settlement costs
+   * (exercise STT for long ITM, settlement brokerage for exercised /
+   * assigned / expired positions) come from the cost engine; the closed
+   * trade is evaluated by the PnL engine.
    */
   settleExpiry(symbol: string, settlementPrice: number): TradePnL | null {
     const spec = this.instruments.get(symbol);
@@ -281,13 +282,10 @@ export class PaperBroker implements BrokerAdapter {
     const intrinsic = spec.optionType === 'CE'
       ? Math.max(settlementPrice - spec.strike!, 0)
       : Math.max(spec.strike! - settlementPrice, 0);
-    let exCost: CostBreakdown | null = null;
-    if (p.qty > 0 && intrinsic > 0) {
-      exCost = calculateExerciseCosts(
-        { intrinsicPerUnit: intrinsic, quantity: p.qty, tradeDate: spec.expiry, underlying: 'INDEX' },
-        this.cfg.costOptions,
-      );
-    }
+    const exCost: CostBreakdown = calculateExpirySettlementCosts(
+      { intrinsicPerUnit: intrinsic, quantity: p.qty, tradeDate: spec.expiry, underlying: 'INDEX' },
+      this.cfg.costOptions,
+    );
     const trade = computeTradePnL({
       tradeId: `${symbol}-${p.cycle[0]?.orderId ?? 'x'}`,
       instrument: 'OPTION',
@@ -295,9 +293,9 @@ export class PaperBroker implements BrokerAdapter {
       settlement: { settlementPrice, strike: spec.strike!, optionType: spec.optionType!, expiryDate: spec.expiry, underlying: 'INDEX' },
       costOptions: this.cfg.costOptions,
     });
-    this.cash += intrinsic * p.qty - (exCost?.totalCharges ?? 0);
+    this.cash += intrinsic * p.qty - exCost.totalCharges;
     p.realizedGross += (intrinsic - p.avg) * p.qty;
-    p.charges += exCost?.totalCharges ?? 0;
+    p.charges += exCost.totalCharges;
     p.qty = 0;
     p.avg = 0;
     p.cycle = [];

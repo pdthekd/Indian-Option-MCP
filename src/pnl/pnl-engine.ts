@@ -17,7 +17,7 @@
  */
 
 import {
-  calculateExerciseCosts,
+  calculateExpirySettlementCosts,
   calculateOrderCosts,
   type CostOptions,
 } from '../costs/transaction-cost-engine.js';
@@ -146,14 +146,13 @@ export function computeTradePnL(input: TradeInput): TradePnL {
       ? Math.max(s.settlementPrice - s.strike, 0)
       : Math.max(s.strike - s.settlementPrice, 0);
     settlementValue = intrinsic * netQty; // long receives, short pays
-    if (netQty > 0 && intrinsic > 0) {
-      costs.push(
-        calculateExerciseCosts(
-          { intrinsicPerUnit: intrinsic, quantity: netQty, tradeDate: s.expiryDate, underlying: s.underlying },
-          input.costOptions,
-        ),
-      );
-    }
+    // Exercised, assigned and OTM-expired positions all attract settlement costs.
+    costs.push(
+      calculateExpirySettlementCosts(
+        { intrinsicPerUnit: intrinsic, quantity: netQty, tradeDate: s.expiryDate, underlying: s.underlying },
+        input.costOptions,
+      ),
+    );
   }
 
   const grossPnL = sellRef - buyRef + settlementValue;

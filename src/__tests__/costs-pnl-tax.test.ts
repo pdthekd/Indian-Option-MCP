@@ -3,9 +3,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  calculateOrderCosts, calculateExerciseCosts, scheduleFor, applySlippage, slippagePerUnit,
+  calculateOrderCosts, calculateExpirySettlementCosts, scheduleFor, applySlippage, slippagePerUnit,
 } from '../costs/transaction-cost-engine.js';
-import { NSE_FO_SCHEDULES } from '../config/charges/nse-fo.js';
+import { NSE_FO_SCHEDULES, SUPERSEDED_NSE_FO_SCHEDULES } from '../config/charges/nse-fo.js';
 import type { CostBreakdown } from '../costs/types.js';
 import { computeTradePnL, computeStrategyPnL, markToMarket, formatPnL, classify } from '../pnl/pnl-engine.js';
 import { estimateTax, incomeTax, taxRulesFor } from '../tax/tax-model.js';
@@ -38,12 +38,19 @@ describe('option order costs (hand-computed, 2026-04-01 schedule)', () => {
     expect(c.turnover).toBe(7500);
     expect(c.brokerage).toBe(20);
     expect(c.stt).toBe(0); // STT on options is sell-side only
-    expect(c.exchangeTxn).toBeCloseTo(2.63, 2); // 7500 × 0.03503 %
-    expect(c.ipft).toBeCloseTo(0.04, 2); // 7500 × 0.0005 %
+    expect(c.exchangeTxn).toBeCloseTo(2.66, 2); // 7500 × 0.03553 % (published)
+    expect(c.ipft).toBe(0); // IPFT listed for equity & futures only
     expect(c.sebiFee).toBeCloseTo(0.01, 2); // ₹10/crore
     expect(c.stampDuty).toBeCloseTo(0.23, 2); // 0.003 % buy side
-    expect(c.gst).toBeCloseTo(0.18 * (20 + 2.63 + 0.04 + 0.01), 2);
-    expect(c.totalCharges).toBeCloseTo(20 + 2.63 + 0.04 + 0.01 + 0.23 + 4.08, 2);
+    expect(c.gst).toBeCloseTo(4.08, 2); // 18 % × (20 + 2.66 + 0.01)
+    expect(c.totalCharges).toBeCloseTo(26.98, 2);
+    expect(c.otherCharges).toBe(0);
+  });
+  it('dealer / auto square-off order adds ₹50 + GST', () => {
+    const base = calculateOrderCosts({ instrument: 'OPTION', exchange: 'NSE', side: 'BUY', quantity: 75, price: 100, tradeDate: D });
+    const dealer = calculateOrderCosts({ instrument: 'OPTION', exchange: 'NSE', side: 'BUY', quantity: 75, price: 100, tradeDate: D, dealerPlaced: true });
+    expect(dealer.otherCharges).toBe(50);
+    expect(dealer.totalCharges - base.totalCharges).toBeCloseTo(59, 2);
   });
   it('SELL 75 @ ₹120 pays 0.15 % STT on premium and no stamp duty', () => {
     const c = calculateOrderCosts({ instrument: 'OPTION', exchange: 'NSE', side: 'SELL', quantity: 75, price: 120, tradeDate: D });
@@ -75,9 +82,34 @@ describe('futures order costs', () => {
 });
 
 describe('exercise and slippage', () => {
-  it('ITM long index option exercise pays STT on intrinsic value', () => {
-    const c = calculateExerciseCosts({ intrinsicPerUnit: 50, quantity: 75, tradeDate: D, underlying: 'INDEX' });
+  it('long ITM (exercised): STT on intrinsic + ₹20 settlement brokerage + GST', () => {
+    const c = calculateExpirySettlementCosts({ intrinsicPerUnit: 50, quantity: 75, tradeDate: D, underlying: 'INDEX' });
     expect(c.stt).toBeCloseTo(3750 * 0.0015, 2);
+    expect(c.brokerage).toBe(20);
+    expect(c.gst).toBeCloseTo(3.6, 2);
+  });
+  it('short ITM (assigned): brokerage, no STT', () => {
+    const c = calculateExpirySettlementCosts({ intrinsicPerUnit: 50, quantity: -75, tradeDate: D, underlying: 'INDEX' });
+    expect(c.stt).toBe(0);
+    expect(c.brokerage).toBe(20);
+  });
+  it('OTM expiry: brokerage per plan, no STT', () => {
+    const c = calculateExpirySettlementCosts({ intrinsicPerUnit: 0, quantity: 75, tradeDate: D, underlying: 'INDEX' });
+    expect(c.stt).toBe(0);
+    expect(c.brokerage).toBe(20);
+    expect(c.assumptions[0]).toMatch(/EXPIRED_OTM/);
+  });
+  it('stock option settlement is refused (physical delivery not modelled)', () => {
+    expect(() => calculateExpirySettlementCosts({ intrinsicPerUnit: 5, quantity: 1, tradeDate: D, underlying: 'STOCK' as 'INDEX' })).toThrow();
+  });
+  it('futures IPFT is ₹0.01 per crore', () => {
+    const c = calculateOrderCosts({ instrument: 'FUTURE', exchange: 'NSE', side: 'BUY', quantity: 7500, price: 20000, tradeDate: D }); // ₹15 cr
+    expect(c.ipft).toBeCloseTo(0.15, 2);
+    expect(c.exchangeTxn).toBeCloseTo(150_000_000 * 0.0000183, 2);
+  });
+  it('superseded schedules are kept for audit but never selected', () => {
+    expect(SUPERSEDED_NSE_FO_SCHEDULES.map((s) => s.id)).toContain('IN-NSE-FO-2026-04-01');
+    expect(scheduleFor('2026-10-05').id).toBe('IN-NSE-FO-2026-04-01-r2');
   });
   it('slippage models move price against the order', () => {
     expect(applySlippage('BUY', 100, { kind: 'TICKS', ticks: 2, tickSize: 0.05 })).toBeCloseTo(100.1, 10);
@@ -158,6 +190,16 @@ describe('PnL engine — net classification', () => {
     });
     expect(p.grossPnL).toBe((250 - 100) * 75);
     expect(p.stt).toBeCloseTo(250 * 75 * 0.0015, 2);
+    expect(p.brokerage).toBe(25 + 20); // entry (actual) + settlement brokerage
+  });
+  it('short option expiring worthless still pays settlement brokerage', () => {
+    const p = computeTradePnL({
+      tradeId: 't5b', instrument: 'OPTION',
+      executions: [{ orderId: 'a', side: 'SELL', quantity: 75, price: 40, tradeDate: D, actualCharges: fixed(10) }],
+      settlement: { settlementPrice: 23900, strike: 24000, optionType: 'CE', expiryDate: '2026-10-06', underlying: 'INDEX' },
+    });
+    expect(p.grossPnL).toBe(3000);
+    expect(p.totalCosts).toBeCloseTo(10 + 20 + 3.6, 2);
   });
   it('refuses an open position without settlement', () => {
     expect(() => computeTradePnL({

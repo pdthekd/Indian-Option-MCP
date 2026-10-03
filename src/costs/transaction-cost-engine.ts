@@ -66,7 +66,7 @@ export function brokeragePlanFor(
   return p;
 }
 
-export const DEFAULT_BROKERAGE_PLAN = 'ZERODHA-FO-2024-10-01';
+export const DEFAULT_BROKERAGE_PLAN = 'ZERODHA-FO-r2';
 
 /**
  * Adverse price movement per unit implied by a slippage model.
@@ -160,15 +160,20 @@ export function calculateOrderCosts(order: OrderForCosts, opts: CostOptions = {}
   stampDuty = round2(stampDuty);
   const sebi = round2(sebiFee);
 
+  // Dealer / auto square-off fee: a broker service fee, so GST applies.
+  const dealerFee = order.dealerPlaced ? round2(plan.dealerOrderFee) : 0;
+  if (order.dealerPlaced) assumptions.push(`Dealer/auto square-off fee ₹${dealerFee} + GST (in otherCharges).`);
+
   const gstBase =
     (sched.gstOn.includes('brokerage') ? brokerage : 0) +
     (sched.gstOn.includes('exchangeTxn') ? exchangeTxn : 0) +
     (sched.gstOn.includes('ipft') ? ipft : 0) +
-    (sched.gstOn.includes('sebiFee') ? sebi : 0);
+    (sched.gstOn.includes('sebiFee') ? sebi : 0) +
+    dealerFee;
   const gst = round2(gstBase * sched.gstRate);
 
   const slippage = round2(opts.slippageRupees ?? 0);
-  const totalCharges = round2(brokerage + stt + exchangeTxn + ipft + sebi + stampDuty + gst);
+  const totalCharges = round2(brokerage + stt + exchangeTxn + ipft + sebi + stampDuty + gst + dealerFee);
 
   return {
     turnover: round2(turnover),
@@ -180,7 +185,7 @@ export function calculateOrderCosts(order: OrderForCosts, opts: CostOptions = {}
     stampDuty,
     gst,
     slippage,
-    otherCharges: 0,
+    otherCharges: dealerFee,
     totalCharges,
     totalCost: round2(totalCharges + slippage),
     scheduleId: sched.id,
@@ -189,10 +194,10 @@ export function calculateOrderCosts(order: OrderForCosts, opts: CostOptions = {}
   };
 }
 
-export interface ExerciseForCosts {
-  /** Settlement price − strike (CE) or strike − settlement (PE); must be > 0. */
+export interface ExpirySettlementForCosts {
+  /** Settlement − strike (CE) or strike − settlement (PE), floored at 0. */
   intrinsicPerUnit: number;
-  /** Units held long and exercised. */
+  /** Signed units still open at expiry: + long, − short. */
   quantity: number;
   tradeDate: string;
   /** Only cash-settled INDEX options are supported. */
@@ -200,21 +205,28 @@ export interface ExerciseForCosts {
 }
 
 /**
- * Costs borne by the HOLDER of an in-the-money option exercised at expiry
- * (cash-settled index options only). Stock options are physically settled
- * and are deliberately unsupported here.
+ * Costs of an option position settled by the exchange at expiry
+ * (cash-settled index options only):
+ * - long ITM (EXERCISED): STT on intrinsic value + settlement brokerage
+ * - short ITM (ASSIGNED): settlement brokerage
+ * - OTM (EXPIRED_OTM): settlement brokerage, if the plan says so
+ * Stock options are physically settled and deliberately unsupported.
  */
-export function calculateExerciseCosts(ex: ExerciseForCosts, opts: CostOptions = {}): CostBreakdown {
+export function calculateExpirySettlementCosts(ex: ExpirySettlementForCosts, opts: CostOptions = {}): CostBreakdown {
   assertDate(ex.tradeDate);
   if (ex.underlying !== 'INDEX') {
-    throw new Error('Exercise costs for physically-settled stock options are not modelled.');
+    throw new Error('Settlement costs for physically-settled stock options are not modelled.');
   }
-  if (!(ex.intrinsicPerUnit > 0) || !(ex.quantity > 0)) throw new Error('Exercise requires intrinsic > 0 and quantity > 0');
+  if (!(ex.intrinsicPerUnit >= 0) || !Number.isFinite(ex.intrinsicPerUnit) || ex.quantity === 0 || !Number.isFinite(ex.quantity)) {
+    throw new Error('Settlement requires intrinsic ≥ 0 and a non-zero quantity');
+  }
   const sched = scheduleFor(ex.tradeDate, opts.schedules);
   const plan = brokeragePlanFor(opts.brokeragePlanId ?? DEFAULT_BROKERAGE_PLAN, ex.tradeDate, opts.plans);
-  const intrinsicValue = ex.intrinsicPerUnit * ex.quantity;
-  const stt = round2(intrinsicValue * sched.options.sttExerciseOnIntrinsic);
-  const brokerage = round2(plan.exercise.flatPerContractSettlement);
+  const outcome: 'EXERCISED' | 'ASSIGNED' | 'EXPIRED_OTM' =
+    ex.intrinsicPerUnit === 0 ? 'EXPIRED_OTM' : ex.quantity > 0 ? 'EXERCISED' : 'ASSIGNED';
+  const intrinsicValue = ex.intrinsicPerUnit * Math.abs(ex.quantity);
+  const stt = outcome === 'EXERCISED' ? round2(intrinsicValue * sched.options.sttExerciseOnIntrinsic) : 0;
+  const brokerage = plan.expirySettlement.appliesTo.includes(outcome) ? round2(plan.expirySettlement.flatPerContract) : 0;
   const gst = round2((sched.gstOn.includes('brokerage') ? brokerage : 0) * sched.gstRate);
   const totalCharges = round2(stt + brokerage + gst);
   return {
@@ -233,7 +245,8 @@ export function calculateExerciseCosts(ex: ExerciseForCosts, opts: CostOptions =
     scheduleId: sched.id,
     brokeragePlanId: plan.id,
     assumptions: [
-      'Exercise: exchange transaction charges, SEBI fee and stamp duty assumed NOT levied on settlement — UNVERIFIED.',
+      `Expiry settlement outcome: ${outcome}.`,
+      'Settlement: exchange transaction charges, SEBI fee and stamp duty assumed NOT levied — UNVERIFIED.',
     ],
   };
 }

@@ -71,7 +71,7 @@ const baseSpec: StrategySpec = {
   profitTakingRules: ['net profit ≥ 50% of max'], invalidationConditions: ['spread > 3%'],
   risk: { maxNetLossPerTradeRupees: 2000, maxLotsPerTrade: 1, maxConcurrentPositions: 1, expectedHoldingTime: '1-5 days' },
   liquidity: { minOpenInterestContracts: 1000, maxBidAskSpreadPct: 0.03, minDataQuality: 'FULL' },
-  costAssumptions: { chargeScheduleIds: ['IN-NSE-FO-2026-04-01'], brokeragePlanId: 'ZERODHA-FO-2024-10-01', slippageModel: 'SPREAD_FRACTION 0.5' },
+  costAssumptions: { chargeScheduleIds: ['IN-NSE-FO-2026-04-01-r2'], brokeragePlanId: 'ZERODHA-FO-r2', slippageModel: 'SPREAD_FRACTION 0.5' },
   changelog: [{ version: '0.1.0', date: '2026-10-03', change: 'initial draft' }],
 };
 

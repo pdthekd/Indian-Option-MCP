@@ -66,8 +66,17 @@ export interface BrokeragePlan {
   effectiveTo: string | null;
   options: { flatPerExecutedOrder: number };
   futures: { percentOfTurnover: number; capPerExecutedOrder: number };
-  /** Brokerage charged when a long option is exercised/settled at expiry. */
-  exercise: { flatPerContractSettlement: number };
+  /** Brokerage on option positions settled by the exchange at expiry. */
+  expirySettlement: {
+    /** ₹ per settled contract position (one symbol), cash-settled index options. */
+    flatPerContract: number;
+    /** Which settlement outcomes attract it. */
+    appliesTo: Array<'EXERCISED' | 'ASSIGNED' | 'EXPIRED_OTM'>;
+  };
+  /** Brokerage as a fraction of contract value when physical delivery happens (stock F&O). */
+  physicalDeliveryPctOfContractValue: number;
+  /** Extra fee per order placed via dealer, incl. broker auto square-off (₹, + GST). */
+  dealerOrderFee: number;
   sources: SourceRef[];
   notes: string[];
 }
@@ -95,6 +104,8 @@ export interface OrderForCosts {
   tradeDate: string;
   /** Number of executed orders this fill represents for brokerage (default 1). */
   executedOrders?: number;
+  /** Placed via broker dealer desk or broker auto square-off → dealer fee + GST applies. */
+  dealerPlaced?: boolean;
 }
 
 export interface CostBreakdown {
