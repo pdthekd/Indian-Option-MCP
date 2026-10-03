@@ -16,7 +16,7 @@ Severity scale: **CRITICAL** (blocks any use with real money), **HIGH**, **MEDIU
 | S4 | `KITE_API_SECRET` is read into the long-running MCP process though never used | MEDIUM | **Fixed**: no longer read by the provider factory |
 | S5 | Kite access token must sit in the MCP client config / process env in plaintext | MEDIUM | Documented; mitigations listed |
 | S6 | Tool input schemas are unbounded (string length, array size, numeric range, NaN-free but ±Infinity allowed, negative prices) | MEDIUM | **Fixed** for all numeric/leg inputs (bounded, finite, positive) |
-| S7 | GitHub Actions pinned to mutable tags; no top-level `permissions:`; tag-derived values interpolated into shell | MEDIUM | **Fixed** in CI (least-privilege `permissions`); SHA pinning listed as follow-up |
+| S7 | GitHub Actions pinned to mutable tags; no top-level `permissions:`; tag-derived values interpolated into shell | MEDIUM | **Fixed** in CI (least-privilege `permissions`). **Release workflow disabled** (moved to `.github/workflows-disabled/`). SHA pinning still a follow-up |
 | S8 | Unit test performs live network call to nseindia.com | LOW | **Fixed**: provider init no longer fires at `createServer()` in tests |
 | S9 | Kite HTTP error bodies (≤300 chars) are copied into tool error text returned to the LLM | LOW | Documented (no secrets observed in Kite error schema) |
 | S10 | Dead `config.ts` (validated config) is never imported; real config is unvalidated `process.env` reads | LOW | Documented |

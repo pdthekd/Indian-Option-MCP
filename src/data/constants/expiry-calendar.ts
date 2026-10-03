@@ -21,66 +21,8 @@
  * expiries, and check whether today is an expiry day.
  */
 
-// ---------------------------------------------------------------------------
-// NSE Holidays — 2026
-// ---------------------------------------------------------------------------
-
-/**
- * NSE trading holidays for calendar year 2026.
- *
- * Dates are midnight UTC strings.  This list is sourced from the NSE
- * circular "Trading Holidays" published at the start of each year.
- *
- * @see https://www.nseindia.com/regulations/trading-holidays
- */
-const NSE_HOLIDAYS_2026: ReadonlySet<string> = new Set([
-  '2026-01-26', // Republic Day
-  '2026-03-10', // Maha Shivaratri
-  '2026-03-17', // Holi
-  '2026-03-31', // Id-Ul-Fitr (Eid)
-  '2026-04-02', // Ram Navami
-  '2026-04-03', // Good Friday
-  '2026-04-14', // Dr. Ambedkar Jayanti
-  '2026-05-01', // Maharashtra Day
-  '2026-05-25', // Buddha Purnima
-  '2026-06-07', // Id-Ul-Adha (Bakrid)
-  '2026-07-06', // Muharram
-  '2026-08-15', // Independence Day
-  '2026-08-16', // Parsi New Year
-  '2026-09-04', // Milad-un-Nabi
-  '2026-10-02', // Mahatma Gandhi Jayanti
-  '2026-10-20', // Dussehra
-  '2026-11-09', // Diwali (Laxmi Puja)
-  '2026-11-10', // Diwali Balipratipada
-  '2026-11-27', // Guru Nanak Jayanti
-  '2026-12-25', // Christmas
-]);
-
-/**
- * Combined holiday set including 2025 (for look-backs) and 2026.
- * Add more years as needed.
- */
-const NSE_HOLIDAYS_2025: ReadonlySet<string> = new Set([
-  '2025-02-26', // Maha Shivaratri
-  '2025-03-14', // Holi
-  '2025-03-31', // Id-Ul-Fitr
-  '2025-04-10', // Shri Mahavir Jayanti
-  '2025-04-14', // Dr. Ambedkar Jayanti
-  '2025-04-18', // Good Friday
-  '2025-05-01', // Maharashtra Day
-  '2025-05-12', // Buddha Purnima
-  '2025-06-07', // Id-Ul-Adha (Bakrid)
-  '2025-07-06', // Muharram
-  '2025-08-15', // Independence Day
-  '2025-08-16', // Parsi New Year
-  '2025-09-05', // Milad-un-Nabi
-  '2025-10-02', // Mahatma Gandhi Jayanti
-  '2025-10-21', // Dussehra
-  '2025-10-22', // Dussehra (additional)
-  '2025-11-05', // Diwali (Laxmi Puja)
-  '2025-11-26', // Guru Nanak Jayanti
-  '2025-12-25', // Christmas
-]);
+// Holidays come from the single shared list in ./holidays.ts.
+import { isNseTradingHoliday, nseHolidaysForYear } from './holidays.js';
 
 // ---------------------------------------------------------------------------
 // Helpers: Holiday / Trading Day
@@ -104,7 +46,7 @@ function toDateKey(d: Date): string {
  */
 export function isNseHoliday(date: Date): boolean {
   const key = toDateKey(date);
-  return NSE_HOLIDAYS_2025.has(key) || NSE_HOLIDAYS_2026.has(key);
+  return isNseTradingHoliday(key);
 }
 
 /**
@@ -182,7 +124,7 @@ function monthlyDow(symbol: string): number {
 /** Human-readable statement of the rules used by this module. */
 export const EXPIRY_RULES_NOTE =
   'Computed from rules in force since 2025-09-01 (NSE: NIFTY weekly Tuesday, monthly = last Tuesday; ' +
-  'BANKNIFTY/FINNIFTY/MIDCPNIFTY monthly only; BSE SENSEX weekly Thursday) with an UNVERIFIED local holiday list. ' +
+  'BANKNIFTY/FINNIFTY/MIDCPNIFTY monthly only; BSE SENSEX weekly Thursday) with the NSE holiday list (2026: official circular NSE/CMTR/71775; 2025: unverified; other years: none). ' +
   'Not authoritative — use the exchange/broker expiry list.';
 
 // ---------------------------------------------------------------------------
@@ -447,12 +389,5 @@ export function isExpiryDay(date: Date = new Date()): boolean {
  * @returns Array of holiday date strings (`YYYY-MM-DD`), sorted chronologically.
  */
 export function getNseHolidays(year: number): string[] {
-  switch (year) {
-    case 2025:
-      return [...NSE_HOLIDAYS_2025].sort();
-    case 2026:
-      return [...NSE_HOLIDAYS_2026].sort();
-    default:
-      return [];
-  }
+  return nseHolidaysForYear(year);
 }

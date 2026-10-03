@@ -34,6 +34,7 @@ import { estimateTax, TAX_ESTIMATE_LABEL } from './tax/tax-model.js';
 
 // Constants & utils
 import { lotSizeFor } from './data/constants/lot-sizes.js';
+import { holidayDataStatus } from './data/constants/holidays.js';
 import { getNextExpiry, EXPIRY_RULES_NOTE } from './data/constants/expiry-calendar.js';
 import { isMarketOpen, getMarketStatusInfo } from './utils/date.js';
 import { calendarDaysToExpiry, istDate } from './utils/time.js';
@@ -105,6 +106,13 @@ function inferStrikeInterval(chain: OptionChainData): number {
   const near = strikes.slice(Math.max(0, idx - 3), idx + 4);
   const diffs = near.slice(1).map((s, i) => s - near[i]).filter((d) => d > 0);
   return Math.min(...diffs);
+}
+
+/** One-line statement of the holiday data used for a date. */
+function holidayBasis(d: Date): string {
+  const year = Number(istDate(d).slice(0, 4));
+  const h = holidayDataStatus(year);
+  return `NSE ${year} holiday list [${h.verification}]`;
 }
 
 /** Lot size for a contract expiry, with its verification status and source. */
@@ -694,18 +702,18 @@ export function createServer(opts: ServerOptions = {}): McpServer {
           out.push(`${idx}: UNAVAILABLE — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
-      out.push('', `🕐 ${getMarketStatusInfo().message} (clock + local holiday list; UNVERIFIED)`);
+      out.push('', `🕐 ${getMarketStatusInfo().message} (${holidayBasis(now())})`);
       return text(out.join('\n'));
     },
   );
 
   server.tool(
     'market_status',
-    'Clock-based NSE session status (09:15–15:30 IST, weekdays, local holiday list). Does not know about special sessions or unscheduled closures.',
+    'Clock-based NSE session status (09:15–15:30 IST, weekdays, NSE trading-holiday list; 2026 list from the official NSE circular). Does not know about special sessions (e.g. Muhurat) or unscheduled closures.',
     {},
     async () => {
       const s = getMarketStatusInfo();
-      return text(`${s.isOpen ? '🟢' : '🔴'} ${s.message}\nBasis: system clock + local 2026 holiday list (UNVERIFIED). Not authoritative.`);
+      return text(`${s.isOpen ? '🟢' : '🔴'} ${s.message}\nBasis: system clock + ${holidayBasis(now())}. Ignores special sessions and unscheduled closures.`);
     },
   );
 
@@ -724,7 +732,7 @@ export function createServer(opts: ServerOptions = {}): McpServer {
 
   server.tool(
     'next_expiry',
-    'COMPUTED next expiry from calendar rules (post-2025 Tuesday regime) and a local holiday list. Not authoritative — prefer get_expiry_dates.',
+    'COMPUTED next expiry from calendar rules (post-2025 Tuesday regime) and the NSE holiday list. Not authoritative — prefer get_expiry_dates.',
     { symbol: Symbol, weekly: z.boolean().optional() },
     async ({ symbol, weekly }) => {
       const d = getNextExpiry(symbol.toUpperCase(), weekly ?? false, now());

@@ -3,30 +3,7 @@
  * Date utilities for Indian market expiry calculations and trading hours.
  */
 
-/** NSE holidays 2026 (dates in YYYY-MM-DD) */
-const NSE_HOLIDAYS_2026 = new Set([
-  '2026-01-26', // Republic Day
-  '2026-02-17', // Mahashivratri (tentative)
-  '2026-03-10', // Holi
-  '2026-03-30', // Id-Ul-Fitr (tentative)
-  '2026-04-02', // Ram Navami
-  '2026-04-03', // Mahavir Jayanti
-  '2026-04-14', // Dr Ambedkar Jayanti
-  '2026-04-18', // Good Friday
-  '2026-05-01', // May Day
-  '2026-06-06', // Id-Ul-Adha (tentative)
-  '2026-07-06', // Muharram (tentative)
-  '2026-08-15', // Independence Day
-  '2026-08-25', // Ganesh Chaturthi (tentative)
-  '2026-09-04', // Milad-un-Nabi (tentative)
-  '2026-10-02', // Mahatma Gandhi Jayanti
-  '2026-10-20', // Dussehra
-  '2026-10-21', // Dussehra (tentative)
-  '2026-11-09', // Diwali (Lakshmi Puja)
-  '2026-11-10', // Diwali Balipratipada
-  '2026-11-30', // Guru Nanak Jayanti
-  '2026-12-25', // Christmas
-]);
+import { isNseTradingHoliday } from '../data/constants/holidays.js';
 
 /**
  * Get current time in IST (UTC+5:30).
@@ -96,7 +73,7 @@ export function parseExpiryDate(dateStr: string): Date {
 export function isTradingDay(date: Date): boolean {
   const day = date.getDay();
   if (day === 0 || day === 6) return false; // Weekend
-  return !NSE_HOLIDAYS_2026.has(formatDateISO(date));
+  return !isNseTradingHoliday(formatDateISO(date));
 }
 
 /**
