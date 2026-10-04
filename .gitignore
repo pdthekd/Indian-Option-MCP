@@ -25,3 +25,19 @@ npm-debug.log*
 
 # Test coverage
 coverage/
+
+# Personal broker / account data — never commit (contract notes, tradebooks, statements)
+*.xlsx
+*.xls
+*.pdf
+tradebook*.csv
+contract*note*.json
+contract*note*.csv
+contract*note*.zip
+*contract-notes*/
+# Credentials and broker sessions
+*.pem
+*.key
+*access_token*
+*.session
+.options-hq/

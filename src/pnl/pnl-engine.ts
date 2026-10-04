@@ -146,7 +146,7 @@ export function computeTradePnL(input: TradeInput): TradePnL {
       ? Math.max(s.settlementPrice - s.strike, 0)
       : Math.max(s.strike - s.settlementPrice, 0);
     settlementValue = intrinsic * netQty; // long receives, short pays
-    // Exercised, assigned and OTM-expired positions all attract settlement costs.
+    // Settlement costs: exercise STT on long ITM; settlement brokerage as the plan specifies.
     costs.push(
       calculateExpirySettlementCosts(
         { intrinsicPerUnit: intrinsic, quantity: netQty, tradeDate: s.expiryDate, underlying: s.underlying },
