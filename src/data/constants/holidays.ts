@@ -62,6 +62,7 @@ const YEARS: Readonly<Record<number, HolidayYear>> = Object.freeze({
       '"Trading holidays for the calendar year 2026", https://nsearchives.nseindia.com/content/circulars/FAOP71777.pdf — read 2026-10-04 ' +
       '(identical to the Capital Market circular NSE/CMTR/71775)',
     holidays: {
+      '2026-01-15': 'Special holiday: Maharashtra Municipal Corporation elections (added after the annual list)',
       '2026-01-26': 'Republic Day',
       '2026-03-03': 'Holi',
       '2026-03-26': 'Shri Ram Navami',
@@ -87,6 +88,9 @@ const YEARS: Readonly<Record<number, HolidayYear>> = Object.freeze({
     notes: [
       'F&O circular NSE/FAOP/71777, Capital Market circular NSE/CMTR/71775 and the commodity circular NSE/COM/71784 ' +
         '(morning session) all list these same 15 weekdays.',
+      '2026-01-15 was added on 2026-01-09 (NSE circular NSE/CD/72233, currency segment; reported as an equity and ' +
+        'derivatives closure on 2026-01-12) and is confirmed for F&O by the absence of an F&O bhavcopy for that date. ' +
+        'Annual lists can change: cross-check with bhavcopy availability.',
       'Settlement holidays (NSE Clearing NCL/CMPT/71923) differ and are not modelled here.',
       'Muhurat trading on Sunday 2026-11-08 is a special session and is not represented as a trading day.',
     ],

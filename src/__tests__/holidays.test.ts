@@ -6,9 +6,9 @@ const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const ymd = (x: Date) => x.toISOString().slice(0, 10);
 
 describe('NSE 2026 trading holidays (official F&O circular NSE/FAOP/71777)', () => {
-  it('has exactly the 15 weekday holidays from the circular', () => {
+  it('has the 15 weekday holidays from the circular plus the 15 Jan special holiday', () => {
     expect(nseHolidaysForYear(2026)).toEqual([
-      '2026-01-26', '2026-03-03', '2026-03-26', '2026-03-31', '2026-04-03', '2026-04-14', '2026-05-01',
+      '2026-01-15', '2026-01-26', '2026-03-03', '2026-03-26', '2026-03-31', '2026-04-03', '2026-04-14', '2026-05-01',
       '2026-05-28', '2026-06-26', '2026-09-14', '2026-10-02', '2026-10-20', '2026-11-10', '2026-11-24', '2026-12-25',
     ]);
     expect(holidayDataStatus(2026).verification).toBe('OFFICIAL');
