@@ -719,7 +719,7 @@ export function createServer(opts: ServerOptions = {}): McpServer {
 
   server.tool(
     'lot_size',
-    'F&O lot size as traded today for contracts of a given expiry. Index lot sizes come from NSE bhavcopy history (by trade date); stock lot sizes come from a stale static table (UNVERIFIED).',
+    'F&O lot size as traded today for contracts of a given expiry, from NSE bhavcopy history (all index and stock contracts, by trade date).',
     {
       symbol: Symbol,
       expiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Contract expiry YYYY-MM-DD (default: today, IST)'),

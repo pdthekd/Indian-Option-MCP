@@ -92,6 +92,20 @@ keyed by **trade date** with uniform periods derived from monthly bhavcopy sampl
 (1,277 contract-days: 1,065 match, 0 mismatch, 212 in transition windows, where the day's
 bhavcopy is required and lookups otherwise fail closed).
 
+### Full backfill (2026-10-04)
+
+All 554 trading days from 2024-07-08 to 2026-10-01 downloaded with 0 errors (~1 MB each, ~600 MB raw). Two
+cross-checks came out of it:
+
+- **Holidays.** Every 2025 weekday without a bhavcopy is an official holiday (13 of 14; the 14th,
+  21 Oct, had a Muhurat session). In 2026 one unlisted weekday had no file: **15 Jan 2026**, a special
+  closure for the Maharashtra municipal elections announced after the annual list (NSE/CD/72233).
+  It is now in the holiday list. Lesson: annual holiday lists change; bhavcopy availability is the check.
+- **Lot sizes.** `dist/derive-lot-sizes-cli.mjs` rebuilds `src/data/constants/lot-history.generated.ts`
+  from every raw file (all index and stock contracts): 285 symbols, uniform periods by trade date,
+  transition days excluded. It captures corporate actions (RELIANCE 250 → 500 after its 1:1 bonus,
+  ZOMATO renamed ETERNAL) that a hand-typed table misses.
+
 ## Open questions (need the account holder or a vendor)
 
 - Dhan data-API pricing and terms; Upstox Plus price; whether TrueData sells historical

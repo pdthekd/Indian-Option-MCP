@@ -111,7 +111,7 @@ describe('MCP server', () => {
     expect(r.text).toContain('GROSS');
     expect(r.text).toContain('Round-trip charges');
     expect(r.text).toContain('NET (after estimated round-trip charges');
-    expect(r.text).toContain('Lot size 65 for NIFTY contracts expiring 2026-10-06, as traded 2026-10-05 [BHAVCOPY_SAMPLED]');
+    expect(r.text).toContain('Lot size 65 for NIFTY contracts expiring 2026-10-06, as traded 2026-10-05 [BHAVCOPY_LATEST]');
   });
 
   it('refuses to price a leg with no market price instead of using 0', async () => {

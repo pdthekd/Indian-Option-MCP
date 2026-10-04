@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "build": "tsc && npm run bundle",
-    "bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bundle.mjs && esbuild src/cli/bhavcopy.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bhavcopy-cli.mjs && esbuild src/cli/record-quotes.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/record-quotes-cli.mjs",
+    "bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bundle.mjs && esbuild src/cli/bhavcopy.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bhavcopy-cli.mjs && esbuild src/cli/record-quotes.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/record-quotes-cli.mjs && esbuild src/cli/derive-lot-sizes.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/derive-lot-sizes-cli.mjs",
     "dev": "tsc --watch",
     "start": "node dist/bundle.mjs",
     "inspect": "echo \"Run MCP Inspector from a pinned, locally installed copy; see docs/MCP_TEST_REPORT.md\" && exit 1",
@@ -31,7 +31,8 @@
     "release:major": "npm version major && git push && git push --tags",
     "test:mcp": "node scripts/mcp-smoke.mjs",
     "history:bhavcopy": "node dist/bhavcopy-cli.mjs",
-    "history:record": "node dist/record-quotes-cli.mjs"
+    "history:record": "node dist/record-quotes-cli.mjs",
+    "history:lot-sizes": "node dist/derive-lot-sizes-cli.mjs"
   },
   "keywords": [
     "mcp",
