@@ -114,6 +114,52 @@ describe('NSE primary chain mapping', () => {
   });
 });
 
+describe('NSE option-chain v3 (primary since NSE retired option-chain-indices, 2026-10-04)', () => {
+  // Shapes observed from the live API on 2026-10-04 (values synthetic).
+  const leg = (strike: number, bid: number, ask: number) => ({
+    strikePrice: strike, expiryDate: '06-10-2026', identifier: `OPTIDXNIFTY06-10-2026CE${strike}.00`, lastPrice: 120,
+    openInterest: 1000, changeinOpenInterest: 10, totalTradedVolume: 50, impliedVolatility: 12.5,
+    buyPrice1: bid, buyQuantity1: 65, sellPrice1: ask, sellQuantity1: 130, underlyingValue: 25010,
+  });
+  const mk = () => {
+    const calls: string[] = [];
+    const prov = new NSEProvider() as unknown as {
+      nseFetch: (path: string) => Promise<unknown>;
+      getOptionChainV3: (s: string, e?: string) => Promise<import('../data/providers/base.provider.js').OptionChainData | null>;
+    };
+    prov.nseFetch = async (path: string) => {
+      calls.push(path);
+      if (path.startsWith('/api/option-chain-contract-info')) return { expiryDates: ['13-Oct-2026', '06-Oct-2026'], strikePrice: ['25000'] };
+      return {
+        records: { timestamp: '05-Oct-2026 11:00:00', underlyingValue: 25010, expiryDates: ['06-Oct-2026'], strikePrices: [25000],
+          data: [{ strikePrice: 25000, expiryDates: '06-Oct-2026', CE: leg(25000, 119.5, 120.5), PE: { ...leg(25000, 0, 0), buyPrice1: 0, sellPrice1: 0 } }] },
+        filtered: {},
+      };
+    };
+    return { prov, calls };
+  };
+
+  it('maps buyPrice1/sellPrice1 to bid/ask, keeps the full expiry list, and reports FULL', async () => {
+    const { prov, calls } = mk();
+    const c = (await prov.getOptionChainV3('NIFTY'))!;
+    expect(c.expiryDate).toBe('2026-10-06');                       // nearest of the contract-info list
+    expect(c.expiryDates).toEqual(['2026-10-06', '2026-10-13']);
+    expect(calls[1]).toBe('/api/option-chain-v3?type=Indices&symbol=NIFTY&expiry=06-Oct-2026');
+    const ce = c.rows[0].CE!;
+    expect([ce.bidPrice, ce.askPrice, ce.bidQty, ce.askQty]).toEqual([119.5, 120.5, 65, 130]);
+    expect(c.rows[0].PE!.bidPrice).toBeNull();                     // NSE 0 = no quote → null, never 0
+    expect(c.dataQuality.status).toBe('FULL');
+  });
+  it('requests a later expiry by its NSE label and caches the expiry list', async () => {
+    const { prov, calls } = mk();
+    await prov.getOptionChainV3('NIFTY');
+    await prov.getOptionChainV3('NIFTY', '2026-10-13');
+    expect(calls.filter((c) => c.includes('contract-info'))).toHaveLength(1);
+    expect(calls.at(-1)).toContain('expiry=13-Oct-2026');
+    await expect(prov.getOptionChainV3('NIFTY', '2026-10-20')).rejects.toThrow(/not listed/);
+  });
+});
+
 describe('NSE fallback chain is DEGRADED with explicit unavailable fields', () => {
   it('never writes 0 for IV / bid / ask / change in OI', async () => {
     const prov = new NSEProvider() as unknown as {

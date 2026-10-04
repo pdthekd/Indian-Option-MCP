@@ -98,3 +98,30 @@ describe('spread calibration', () => {
     expect(CALIBRATION_RULE.percentile).toBe(0.75);
   });
 });
+
+describe('close-vs-quote gap', async () => {
+  const { closeGapObservations, summarizeGaps } = await import('../analytics/close-gap.js');
+  const quote = (at: string, strike: number, bid: number, ask: number): QuoteSnapshotRow => ({
+    recordedAt: at, sourceAsOf: null, quality: 'FULL', source: 'x', symbol: 'NIFTY', expiry: '2026-10-06', spot: 25000,
+    strike, type: 'CE', bid, ask, bidQty: 1, askQty: 1, ltp: null, iv: null, oi: null, volume: null,
+  });
+  const bhav = (strike: number, close: number, vol = 10) => ({
+    tradeDate: '2026-10-05', symbol: 'NIFTY', instrumentType: 'IDX_OPT' as const, expiry: '2026-10-06', strike, optionType: 'CE' as const,
+    open: close, high: close, low: close, close, lastPrice: close, previousClose: close, settlementPrice: close, underlyingPrice: 25000,
+    openInterest: 1, changeInOpenInterest: 0, volumeContracts: vol, notionalTurnover: 0, trades: 1, lotSize: 65,
+  });
+  it('uses the LAST snapshot in 15:20–15:30 IST and measures ask − close and close − bid', () => {
+    const quotes = [
+      quote('2026-10-05T09:50:00Z', 25500, 9, 11),     // 15:20 IST: superseded
+      quote('2026-10-05T09:59:00Z', 25500, 9.8, 10.4), // 15:29 IST: used
+      quote('2026-10-05T10:05:00Z', 25500, 1, 100),    // 15:35 IST: outside the window
+      quote('2026-10-05T09:59:00Z', 25750, 3, 3.5),    // close untraded → excluded
+    ];
+    const obs = closeGapObservations(quotes, [bhav(25500, 10), bhav(25750, 3.2, 0)]);
+    expect(obs).toHaveLength(1);
+    expect(obs[0]).toMatchObject({ quotedAtIst: '15:29:00', close: 10, buyCost: 0.4, sellCost: 0.2, modelHalfSpread: 0.2 });
+    const b = summarizeGaps(obs).find((x) => x.n === 1)!;
+    expect(b.modelCoversBoth).toBe(0);   // V1 (₹0.20) under-charges the ₹0.40 buy cost here
+    expect(b.closeInsideQuote).toBe(1);
+  });
+});

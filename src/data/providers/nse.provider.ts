@@ -312,6 +312,8 @@ export class NSEProvider extends BaseProvider {
 
   // ── Utility: is this an index? ─────────────────────────────────────────
 
+  private readonly contractInfoCache = new Map<string, { at: number; info: { expiryDates?: string[] } }>();
+
   private isIndex(symbol: string): boolean {
     return INDEX_SYMBOLS.has(symbol.toUpperCase());
   }
@@ -328,22 +330,17 @@ export class NSEProvider extends BaseProvider {
     }
     let primaryError = 'empty response';
 
-    // ── Primary endpoint (available during & shortly after market hours) ──
+    // ── Primary: NSE option-chain v3 (full chain with best bid/ask) ──
+    // NSE retired /api/option-chain-indices and /api/option-chain-equities (HTTP 404, observed
+    // 2026-10-04). v3 needs the expiry, which /api/option-chain-contract-info lists.
     try {
-      const endpoint = this.isIndex(upperSymbol)
-        ? `/api/option-chain-indices?symbol=${encodeURIComponent(upperSymbol)}`
-        : `/api/option-chain-equities?symbol=${encodeURIComponent(upperSymbol)}`;
-
-      const raw = await this.nseFetch<NseOptionChainResponse>(endpoint);
-      // Validate we got actual data (NSE sometimes returns empty JSON)
-      if (raw?.records?.data?.length) {
-        return this.mapOptionChain(upperSymbol, raw, expiryDate);
-      }
-      console.error('[NSE] Primary option chain returned empty data — trying fallback.');
+      const chain = await this.getOptionChainV3(upperSymbol, expiryDate);
+      if (chain) return chain;
+      console.error('[NSE] Option chain v3 returned empty data — trying fallback.');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       primaryError = msg;
-      console.error(`[NSE] Primary option chain failed: ${msg} — trying fallback endpoint.`);
+      console.error(`[NSE] Option chain v3 failed: ${msg} — trying fallback endpoint.`);
     }
 
     // ── Fallback: /api/liveEquity-derivatives (available even after hours) ──
@@ -357,6 +354,42 @@ export class NSEProvider extends BaseProvider {
         `Primary: ${primaryError}. Fallback: ${msg}.`,
       );
     }
+  }
+
+  /**
+   * Option chain from NSE's v3 API. Returns null when NSE answers with no rows.
+   * v3 legs carry the best bid/ask as buyPrice1/sellPrice1 (+ quantities); each row's expiry is
+   * in `expiryDates` (a single string). The full expiry list comes from contract-info.
+   */
+  private async getOptionChainV3(symbol: string, expiryDate?: string): Promise<OptionChainData | null> {
+    // The expiry list does not change intraday: cache it briefly to halve requests to NSE.
+    const cached = this.contractInfoCache.get(symbol);
+    const info = cached && Date.now() - cached.at < CONTRACT_INFO_TTL_MS
+      ? cached.info
+      : await this.nseFetch<{ expiryDates?: string[] }>(`/api/option-chain-contract-info?symbol=${encodeURIComponent(symbol)}`);
+    if (!cached || cached.info !== info) this.contractInfoCache.set(symbol, { at: Date.now(), info });
+    const listed = (info?.expiryDates ?? [])
+      .map((raw) => ({ raw, iso: normalizeExpiry(raw) }))
+      .filter((x): x is { raw: string; iso: string } => x.iso !== null)
+      .sort((a, b) => a.iso.localeCompare(b.iso));
+    const target = this.resolveExpiry(expiryDate, listed.map((x) => x.iso));
+    const rawExpiry = listed.find((x) => x.iso === target)!.raw;
+    const type = this.isIndex(symbol) ? 'Indices' : 'Equity';
+    const v3 = await this.nseFetch<NseOptionChainResponse>(
+      `/api/option-chain-v3?type=${type}&symbol=${encodeURIComponent(symbol)}&expiry=${encodeURIComponent(rawExpiry)}`,
+    );
+    const data = v3?.records?.data ?? [];
+    if (data.length === 0) return null;
+    const raw: NseOptionChainResponse = {
+      ...v3,
+      records: {
+        ...v3.records,
+        expiryDates: listed.map((x) => x.raw),
+        data: data.map((r) => ({ ...r, expiryDate: r.expiryDate ?? r.expiryDates ?? '' })),
+      },
+    };
+    const chain = this.mapOptionChain(symbol, raw, target); // source stays "nse-primary": v3 is now the primary API
+    return chain;
   }
 
   // ── Fallback option chain from live derivatives endpoint ─────────────
@@ -731,16 +764,19 @@ export class NSEProvider extends BaseProvider {
       changeinOpenInterest: num(leg.changeinOpenInterest),
       totalTradedVolume: num(leg.totalTradedVolume),
       impliedVolatility: positive(leg.impliedVolatility),
-      bidQty: positive(leg.bidQty),
-      bidPrice: positive(leg.bidprice ?? leg.bidPrice),
-      askQty: positive(leg.askQty),
-      askPrice: positive(leg.askPrice),
+      // Legacy API: bidprice/bidQty/askPrice/askQty. v3 API: buyPrice1/buyQuantity1/sellPrice1/sellQuantity1.
+      bidQty: positive(leg.bidQty ?? leg.buyQuantity1),
+      bidPrice: positive(leg.bidprice ?? leg.bidPrice ?? leg.buyPrice1),
+      askQty: positive(leg.askQty ?? leg.sellQuantity1),
+      askPrice: positive(leg.askPrice ?? leg.sellPrice1),
       underlyingValue: positive(leg.underlyingValue),
     };
   }
 }
 
 // ── NSE raw JSON shapes (internal) ───────────────────────────────────────
+
+const CONTRACT_INFO_TTL_MS = 15 * 60_000;
 
 interface NseOptionLeg {
   strikePrice?: number;
@@ -757,12 +793,19 @@ interface NseOptionLeg {
   bidPrice?: number;
   askQty?: number;
   askPrice?: number;
+  /** v3 API: best bid / ask and their quantities. */
+  buyPrice1?: number;
+  buyQuantity1?: number;
+  sellPrice1?: number;
+  sellQuantity1?: number;
   underlyingValue?: number;
 }
 
 interface NseOptionChainRow {
   strikePrice: number;
   expiryDate: string;
+  /** v3 API: the row's expiry (a single DD-Mon-YYYY string despite the plural name). */
+  expiryDates?: string;
   CE?: NseOptionLeg;
   PE?: NseOptionLeg;
 }

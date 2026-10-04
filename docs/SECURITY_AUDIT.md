@@ -174,7 +174,7 @@ by every broker adapter; added as `src/utils/redact.ts` with tests.
 | Personal broker files | Contract-note workbook and tradebook kept outside git; `.gitignore` now blocks `*.xlsx`, `*.xls`, `*.pdf`, tradebooks, contract-note JSON/CSV/ZIP, `*.pem`, `*.key`, `*access_token*`, `*.session` for every clone (previously only the local `.git/info/exclude`) | protected |
 | Contract-note pipeline | `scripts/contract_note_xlsx_to_json.py` drops name, address, PAN, client code and note numbers, salts and hashes order numbers, and **refuses to write inside a git working tree** (tested). Docs contain aggregates only | PASS |
 | Production dependencies | `npm audit --omit=dev` | 0 vulnerabilities |
-| Dev dependencies | `npm audit` | 2 moderate: vitest ≤ 4.1.10 / @vitest/mocker path traversal (GHSA-82fw-gwwq-j7x9). Dev/test only, never shipped or run on untrusted input. The fix is vitest 5 (breaking); **accepted, tracked** |
+| Dev dependencies | `npm audit` | 2 moderate: vitest ≤ 4.1.10 / @vitest/mocker path traversal (GHSA-82fw-gwwq-j7x9). Dev/test only, never shipped or run on untrusted input. Fixed later the same day: vitest 5.0.3; `npm audit` now reports 0 vulnerabilities |
 | Order paths | grep for order/portfolio/margin/GTT endpoints and non-GET broker calls | none; the Kite provider calls only `/quote`, `/quote/ltp`, historical and instruments |
 | BrokerAdapter implementations | grep | only `PaperBroker` |
 | Live mode | `resolveTradingMode` | `TRADING_MODE=live` **throws unconditionally**. sandbox/shadow return `executionAllowed: false`. Unknown values throw. No silent fallback from paper/sandbox to live exists, because no live adapter exists |

@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "build": "tsc && npm run bundle",
-    "bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bundle.mjs && esbuild src/cli/bhavcopy.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bhavcopy-cli.mjs && esbuild src/cli/record-quotes.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/record-quotes-cli.mjs && esbuild src/cli/derive-lot-sizes.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/derive-lot-sizes-cli.mjs && esbuild src/cli/backtest.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/backtest-cli.mjs && esbuild src/cli/foundation-analysis.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/foundation-analysis-cli.mjs && esbuild src/cli/reconcile-contract-notes.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/reconcile-cli.mjs && esbuild src/cli/experiments.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/experiments-cli.mjs",
+    "bundle": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bundle.mjs && esbuild src/cli/bhavcopy.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/bhavcopy-cli.mjs && esbuild src/cli/record-quotes.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/record-quotes-cli.mjs && esbuild src/cli/derive-lot-sizes.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/derive-lot-sizes-cli.mjs && esbuild src/cli/backtest.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/backtest-cli.mjs && esbuild src/cli/foundation-analysis.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/foundation-analysis-cli.mjs && esbuild src/cli/reconcile-contract-notes.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/reconcile-cli.mjs && esbuild src/cli/experiments.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/experiments-cli.mjs && esbuild src/cli/calibration.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/calibration-cli.mjs",
     "dev": "tsc --watch",
     "start": "node dist/bundle.mjs",
     "inspect": "echo \"Run MCP Inspector from a pinned, locally installed copy; see docs/MCP_TEST_REPORT.md\" && exit 1",
@@ -80,9 +80,10 @@
     "@types/node": "^22.15.18",
     "esbuild": "0.25.12",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.1"
+    "vite": "^7.3.6",
+    "vitest": "^5.0.3"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.12.0"
   }
 }

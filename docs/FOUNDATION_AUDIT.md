@@ -138,8 +138,9 @@ See EXPERIMENT_PROTOCOL.md.
 | F10 | Charges after 2026-04-01 and settlement charges not yet seen on a contract note | Medium | Open |
 | F11 | Margin is a proxy | Medium | Open |
 | F12 | A test claimed to cover the broker-disconnect lockout but did not | Low | **Fixed**: new test (preview and confirm both fail closed) |
-| F13 | vitest dev dependency, moderate advisory | Low (dev only) | Accepted; upgrade to vitest 5 later |
+| F13 | vitest dev dependency, moderate advisory | Low (dev only) | **Fixed** (2026-10-04): vitest 5.0.3 (with vite 7, keeping the pinned esbuild); `npm audit` 0 vulnerabilities. CI now tests Node 22 and 24 (Node 20 is end-of-life and unsupported by vitest 5); `engines` ≥ 22.12 |
 | F14 | The download CLI skipped Muhurat special sessions (bhavcopy published on a holiday), so a clean checkout would get 493 of the 495 days and fail verification. Two reference trades were filled at Muhurat-session closes (entries 2024-11-01 and 2025-10-21) | Medium: reproducibility; fill realism | **Fixed.** Download: `SPECIAL_SESSIONS` / `expectBhavcopy`. Fills: owner decided to exclude special sessions; the engine default is now `NO_FILLS` (the order waits for the next regular close). Tested as pre-registered **EXP-0006 → EXP-0007: REJECTED**, net −₹61,313.06; exactly the 2 predicted trades changed. EXP-0001/0002 stay reproducible with `--special-sessions allow` |
+| F15 | NSE retired `/api/option-chain-indices` (HTTP 404, found 2026-10-04 in a pre-session probe). The provider fell back to an endpoint with **no bid/ask**, marked DEGRADED. The quote recorder accepts only FULL data, so **it would have recorded nothing** from its first session, and MCP option-chain tools lost bid/ask and IV | High: calibration data silently never collected | **Fixed**: the provider uses NSE's option-chain v3 (`/api/option-chain-contract-info` + `/api/option-chain-v3`; best bid/ask = `buyPrice1`/`sellPrice1`), verified live (FULL, two-sided quotes on every near-ATM leg for NIFTY and BANKNIFTY). The expiry list is cached for 15 minutes. Tested with the observed response shape |
 
 ## Paper, shadow and live policy (unchanged, restated)
 

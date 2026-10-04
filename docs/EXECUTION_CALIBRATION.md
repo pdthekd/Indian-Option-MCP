@@ -56,11 +56,32 @@ The model is chosen by this rule, not by which spread gives the best P&L. A cali
 produces a *smaller* spread than V1 is accepted only through this rule; one that produces a larger
 spread is accepted the same way.
 
+## Close vs quote measurement (added 2026-10-04)
+
+The EOD backtest fills at the bhavcopy close ± V1. That close is a weighted average of late trades,
+so the right question is not only "how wide is the spread" but "how far was the close from the bid
+and ask you could actually have traded". For every recorded contract, `src/analytics/close-gap.ts`
+takes the **last snapshot stamped 15:20–15:30 IST** and that day's bhavcopy close C (traded
+contracts only), then measures:
+
+- buy cost = ask − C (what a buyer really paid above the reference),
+- sell cost = C − bid (what a seller really gave up below it),
+
+and compares both with the V1 half-spread at C, by premium bucket. It also reports how often V1
+covers both sides and how often C lies inside the quote. Run after the day's bhavcopy is downloaded:
+
+```bash
+node dist/bhavcopy-cli.mjs --from <date> --to <date>
+node dist/calibration-cli.mjs     # writes ~/.options-hq/data/calibration/calibration-report.{md,json}
+```
+
+This is measurement only. Any change to the fill model still goes through the pre-registered rule
+above.
+
 ## Still not addressed by calibration
 
-- Close price vs tradable price: calibration measures bid/ask width, not the gap between the
-  bhavcopy weighted-average close and a price available at 15:29. Shadow trading (recording the
-  price a real order would have got) is required for that.
+- Quotes are top-of-book snapshots polled about once a minute (NSE refresh rate not yet known), not
+  executions. Shadow trading, which records the price a real order would have got, remains the final check.
 - Intraday strategies need intraday option history, which is not available.
 - Spreads widen in fast markets; the 75th percentile is chosen partly for that, but it is still a
   sample of calm and normal days until a stressed session is recorded.
