@@ -3,7 +3,7 @@
 Date: 2026-10-04. Subject: `ref_nifty_weekly_iron_condor` v1.0.0, audited run (EXP-0002: brokerage
 plan r3, spread EOD_PESSIMISTIC_V1), 2024-10-01 → 2026-10-01, 104 trades, 1 lot.
 All figures are **NET** of modelled charges and spread. Reproduce with
-`node dist/foundation-analysis-cli.mjs` (module `src/analytics/tail-loss.ts`).
+`node dist/foundation-analysis-cli.mjs --special-sessions allow` (module `src/analytics/tail-loss.ts`; EXP-0002 predates the special-session policy).
 
 ## Summary
 

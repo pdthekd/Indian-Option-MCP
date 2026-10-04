@@ -14,7 +14,12 @@ import { z } from 'zod';
 export const ExperimentSchema = z.object({
   id: z.string().regex(/^EXP-\d{4}$/),
   registeredAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T/),
-  kind: z.enum(['REFERENCE_RUN', 'AUDIT_RERUN', 'SENSITIVITY', 'HYPOTHESIS_TEST']),
+  kind: z.enum(['REFERENCE_RUN', 'AUDIT_RERUN', 'SENSITIVITY', 'HYPOTHESIS_TEST', 'RESULT']),
+  /**
+   * For kind RESULT only: the id of an earlier PENDING entry (the pre-registration) this result
+   * resolves. The registry is append-only, so pre-registration and result are two linked entries.
+   */
+  resolves: z.string().regex(/^EXP-\d{4}$/).optional(),
   hypothesis: z.string().min(10),
   strategy: z.object({ id: z.string(), version: z.string(), fingerprint: z.string().length(64) }),
   data: z.object({ from: z.string(), to: z.string(), days: z.number().int().positive(), rawSha256: z.string().length(64), normalizedSha256: z.string().length(64) }),
@@ -73,8 +78,28 @@ export function verifyRegistry(entries: readonly RegistryEntry[]): string[] {
     if (entryHash(rest) !== hash) errs.push(`entry ${i}: hash mismatch (edited?)`);
     if (ids.has(e.id)) errs.push(`entry ${i}: duplicate id ${e.id}`);
     ids.add(e.id);
+    if (e.kind === 'RESULT') errs.push(...resultLinkErrors(entries.slice(0, i), e, i));
+    else if (e.resolves) errs.push(`entry ${i}: only RESULT entries may resolve another entry`);
     prev = hash;
   });
+  return errs;
+}
+
+/**
+ * A RESULT must resolve an earlier PENDING pre-registration exactly once, and must have run what was
+ * registered: same strategy, data, cost model, execution model, periods, parameters and decision rule.
+ */
+function resultLinkErrors(earlier: readonly RegistryEntry[], e: RegistryEntry, i: number): string[] {
+  if (!e.resolves) return [`entry ${i}: RESULT without 'resolves'`];
+  const pre = earlier.find((x) => x.id === e.resolves);
+  if (!pre) return [`entry ${i}: resolves unknown or later entry ${e.resolves}`];
+  const errs: string[] = [];
+  if (pre.decision !== 'PENDING' || pre.result !== null) errs.push(`entry ${i}: ${e.resolves} is not a PENDING pre-registration`);
+  if (earlier.some((x) => x.kind === 'RESULT' && x.resolves === e.resolves)) errs.push(`entry ${i}: ${e.resolves} already resolved`);
+  for (const k of ['strategy', 'data', 'costModel', 'executionModel', 'periods', 'parameters', 'decisionRule'] as const) {
+    if (canonical(pre[k]) !== canonical(e[k])) errs.push(`entry ${i}: ${k} differs from pre-registration ${e.resolves}`);
+  }
+  if (e.result === null || e.decision === 'PENDING') errs.push(`entry ${i}: RESULT must carry a result and a decision`);
   return errs;
 }
 
@@ -84,6 +109,11 @@ export function appendExperiment(file: string, exp: Experiment): RegistryEntry {
   if (errs.length) throw new Error(`Registry is not intact; refusing to append: ${errs[0]}`);
   const parsed = ExperimentSchema.parse(exp);
   if (entries.some((e) => e.id === parsed.id)) throw new Error(`Experiment ${parsed.id} already registered`);
+  if (parsed.kind === 'RESULT') {
+    const probe = { ...parsed, seq: entries.length + 1, prevHash: '', hash: '' } as RegistryEntry;
+    const errs = resultLinkErrors(entries, probe, entries.length);
+    if (errs.length) throw new Error(`Invalid RESULT: ${errs.join('; ')}`);
+  }
   const base = { ...parsed, seq: entries.length + 1, prevHash: entries.length ? entries[entries.length - 1].hash : GENESIS };
   const entry: RegistryEntry = { ...base, hash: entryHash(base) };
   appendFileSync(file, JSON.stringify(entry) + '\n');
@@ -92,5 +122,6 @@ export function appendExperiment(file: string, exp: Experiment): RegistryEntry {
 
 /** Number of registered trials of a strategy family (all versions), for multiple-testing awareness. */
 export function trialsFor(entries: readonly RegistryEntry[], strategyId: string): number {
-  return entries.filter((e) => e.strategy.id === strategyId && e.kind !== 'SENSITIVITY').length;
+  // A RESULT completes its pre-registration; it is not another trial.
+  return entries.filter((e) => e.strategy.id === strategyId && e.kind !== 'SENSITIVITY' && e.kind !== 'RESULT').length;
 }

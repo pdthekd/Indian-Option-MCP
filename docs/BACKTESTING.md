@@ -33,7 +33,7 @@ others are for sensitivity only), `--write-golden <file>`, `--verify <golden fil
 | An open position whose expiry-day data is missing throws | No position silently survives expiry |
 | Held legs are followed by NSE instrument id (`FinInstrmId`) every day; an expiry relabel is followed, a vanished contract throws | NSE relabels expiries of listed contracts (2025-08-01, 2025-12-29) |
 | A strategy may return `{ noTrade: reason }`; reasons are recorded in `result.noTrade` | No silently dropped signals |
-| Any day with a bhavcopy is a trading day, including Muhurat special sessions | Two reference trades filled in Muhurat sessions (FOUNDATION_AUDIT F14, open) |
+| Muhurat special sessions are not fill opportunities (default `NO_FILLS`): an order waits for the next regular close. Marks and settlement use every published session | A ~1-hour thin session's close is not a realistic fill (F14; EXP-0006). `--special-sessions allow` reproduces results frozen before 2026-10-04 |
 | Every result records brokerage plan, spread model and a data version (sha256 of raw and normalized files) | Exact reproducibility |
 
 Reports (`src/backtest/report.ts`): GROSS / COSTS / NET; net expectancy ± standard error, win rate,
@@ -96,6 +96,11 @@ Difference: exactly 380 worthless legs × ₹23.60 = ₹8,968.00. Both results a
 in `src/strategy/reference/golden/`, reproduced exactly by `npm run backtest:verify` /
 `backtest:verify-original`, and independently re-computed from the raw NSE zips by
 `scripts/verify_reference.py` (separate Python implementation; all 104 trades match to the paisa).
+With the special-session policy (EXP-0006, pre-registered; result EXP-0007): 104 trades, gross
+−₹34,562.25, net **−₹61,313.06**, net expectancy −₹589.55 ± ₹469.45 per trade (development −₹550.67,
+out-of-sample −₹628.43), so REJECTED. Only the two trades previously filled in Muhurat sessions
+changed. `npm run backtest:verify-exp0006` reproduces it.
+
 Analyses: COST_MODEL_AUDIT.md, EXECUTION_CALIBRATION.md, TAIL_LOSS_ANALYSIS.md, REGIME_ANALYSIS.md,
 FOUNDATION_AUDIT.md.
 

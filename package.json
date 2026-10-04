@@ -34,8 +34,9 @@
     "history:record": "node dist/record-quotes-cli.mjs",
     "history:lot-sizes": "node dist/derive-lot-sizes-cli.mjs",
     "backtest:reference": "node dist/backtest-cli.mjs",
-    "backtest:verify": "node dist/backtest-cli.mjs --from 2024-10-01 --to 2026-10-01 --verify src/strategy/reference/golden/ref_iron_condor_v1.0.0_audited_r3_v1.json",
-    "backtest:verify-original": "node dist/backtest-cli.mjs --from 2024-10-01 --to 2026-10-01 --brokerage-plan ZERODHA-FO-r2 --verify src/strategy/reference/golden/ref_iron_condor_v1.0.0_original_r2_v1.json"
+    "backtest:verify": "node dist/backtest-cli.mjs --from 2024-10-01 --to 2026-10-01 --special-sessions allow --verify src/strategy/reference/golden/ref_iron_condor_v1.0.0_audited_r3_v1.json",
+    "backtest:verify-original": "node dist/backtest-cli.mjs --from 2024-10-01 --to 2026-10-01 --brokerage-plan ZERODHA-FO-r2 --special-sessions allow --verify src/strategy/reference/golden/ref_iron_condor_v1.0.0_original_r2_v1.json",
+    "backtest:verify-exp0006": "node dist/backtest-cli.mjs --from 2024-10-01 --to 2026-10-01 --verify src/strategy/reference/golden/ref_iron_condor_v1.0.0_exp0006_r3_v1_no-special-fills.json"
   },
   "keywords": [
     "mcp",

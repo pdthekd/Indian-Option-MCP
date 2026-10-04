@@ -139,7 +139,7 @@ See EXPERIMENT_PROTOCOL.md.
 | F11 | Margin is a proxy | Medium | Open |
 | F12 | A test claimed to cover the broker-disconnect lockout but did not | Low | **Fixed**: new test (preview and confirm both fail closed) |
 | F13 | vitest dev dependency, moderate advisory | Low (dev only) | Accepted; upgrade to vitest 5 later |
-| F14 | The download CLI skipped Muhurat special sessions (bhavcopy published on a holiday), so a clean checkout would get 493 of the 495 days and fail verification. **Two reference trades were filled at Muhurat-session closes** (entries 2024-11-01 and 2025-10-21; net +₹1,251.96 and +₹829.18) | Medium: reproducibility; fill realism | Download **fixed** (`SPECIAL_SESSIONS`, `expectBhavcopy`). Fill policy **open, owner decision**: a ~1-hour thin session's close is a doubtful fill price. Excluding special sessions from fills would change the frozen result, so it must be a new registered experiment. Either way the strategy stays REJECTED (net would fall by up to ₹2,081 if those trades were dropped) |
+| F14 | The download CLI skipped Muhurat special sessions (bhavcopy published on a holiday), so a clean checkout would get 493 of the 495 days and fail verification. Two reference trades were filled at Muhurat-session closes (entries 2024-11-01 and 2025-10-21) | Medium: reproducibility; fill realism | **Fixed.** Download: `SPECIAL_SESSIONS` / `expectBhavcopy`. Fills: owner decided to exclude special sessions; the engine default is now `NO_FILLS` (the order waits for the next regular close). Tested as pre-registered **EXP-0006 → EXP-0007: REJECTED**, net −₹61,313.06; exactly the 2 predicted trades changed. EXP-0001/0002 stay reproducible with `--special-sessions allow` |
 
 ## Paper, shadow and live policy (unchanged, restated)
 
@@ -170,7 +170,8 @@ node dist/bhavcopy-cli.mjs --from 2024-07-08 --to 2026-10-01
 npm run backtest:verify && npm run backtest:verify-original   # raw hash + every trade exact; normalized hash vs data-versions.json pin
 python scripts/verify_reference.py --golden src/strategy/reference/golden/ref_iron_condor_v1.0.0_audited_r3_v1.json
 python scripts/audit_bhavcopy.py
-node dist/foundation-analysis-cli.mjs
+node dist/foundation-analysis-cli.mjs --special-sessions allow   # analyses as documented (EXP-0002)
+npm run backtest:verify-exp0006                                  # current policy (EXP-0006/0007)
 node dist/experiments-cli.mjs verify
 ```
 
@@ -180,6 +181,5 @@ node dist/experiments-cli.mjs verify
   - ≥ 20 recorded sessions and a calibrated spread under the pre-registered rule
   - a reconciled contract note from after April 2026 that includes an expiry-day ITM settlement
   - broker-verified margin for one structure
-  - a decision on F14 (fills in special sessions)
 - **Strategy**: nothing. v1.0.0 is rejected. A different strategy starts as a new registered
   experiment, and the answer may again be NO TRADE.

@@ -46,3 +46,45 @@ describe('experiment registry', () => {
     expect(entries.filter((e) => /^EXP-000[1-5]$/.test(e.id)).map((e) => e.decision)).toEqual(Array(5).fill('REJECTED'));
   });
 });
+
+describe('pre-registration and linked RESULT entries', () => {
+  const setup = () => {
+    const f = join(mkdtempSync(join(tmpdir(), 'reg-')), 'e.jsonl');
+    appendExperiment(f, exp('EXP-0001'));
+    return f;
+  };
+  const result = (over: Partial<Experiment> = {}): Experiment => ({
+    ...exp('EXP-0002'), kind: 'RESULT', resolves: 'EXP-0001', decision: 'REJECTED',
+    result: { trades: 104, grossTotal: -1, costsTotal: 1, netTotal: -2, netExpectancy: -0.02, netExpectancyStdErr: 1, developmentNet: -1, outOfSampleNet: -1 },
+    ...over,
+  });
+
+  it('accepts a RESULT that ran exactly what was pre-registered, and counts one trial', () => {
+    const f = setup();
+    appendExperiment(f, result());
+    expect(verifyRegistry(readRegistry(f))).toEqual([]);
+    expect(trialsFor(readRegistry(f), 's')).toBe(1);
+  });
+  it('refuses a RESULT whose run differs from the pre-registration (no moving the goalposts)', () => {
+    const f = setup();
+    expect(() => appendExperiment(f, result({ decisionRule: 'a looser rule written afterwards' }))).toThrow(/decisionRule differs/);
+    expect(() => appendExperiment(f, result({ parameters: { k: 2 } }))).toThrow(/parameters differs/);
+    expect(() => appendExperiment(f, result({ executionModel: { fill: 'other', spreadModel: 'EOD_ZERO_SPREAD' } }))).toThrow(/executionModel differs/);
+  });
+  it('refuses resolving twice, resolving unknown entries, or a RESULT without a decision', () => {
+    const f = setup();
+    appendExperiment(f, result());
+    expect(() => appendExperiment(f, result({ id: 'EXP-0003' }))).toThrow(/already resolved/);
+    expect(() => appendExperiment(f, result({ id: 'EXP-0004', resolves: 'EXP-0099' }))).toThrow(/unknown/);
+    expect(() => appendExperiment(f, result({ id: 'EXP-0005', resolves: 'EXP-0002' }))).toThrow(/not a PENDING/);
+    const g = setup();
+    expect(() => appendExperiment(g, result({ decision: 'PENDING' }))).toThrow(/must carry a result and a decision/);
+  });
+  it('the committed EXP-0006 pre-registration is resolved by EXP-0007: REJECTED', () => {
+    const entries = readRegistry(new URL('../../research/experiments.jsonl', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'));
+    const r = entries.find((e) => e.id === 'EXP-0007');
+    expect(r).toMatchObject({ kind: 'RESULT', resolves: 'EXP-0006', decision: 'REJECTED' });
+    expect(r?.result?.netTotal).toBe(-61313.06);
+    expect(entries.findIndex((e) => e.id === 'EXP-0006')).toBeLessThan(entries.findIndex((e) => e.id === 'EXP-0007'));
+  });
+});

@@ -4,6 +4,7 @@
  *
  *   node dist/backtest-cli.mjs [--from 2024-10-01] [--to 2026-10-01]
  *                              [--brokerage-plan ZERODHA-FO-r3] [--spread-model EOD_PESSIMISTIC_V1]
+ *                              [--special-sessions exclude|allow]
  *                              [--write-golden <file>] [--verify <golden file>]
  *
  * Writes <data dir>/backtests/<strategy>_<from>_<to>_<plan>_<spread>.{json,md} (outside the repo).
@@ -40,6 +41,11 @@ function main(): number {
   if (!spread) throw new Error(`Unknown spread model ${spreadId}. Known: ${Object.keys(SPREAD_MODELS).join(', ')}`);
   if (spread.id !== EOD_PESSIMISTIC_V1.id) console.error(`NOTE: spread model ${spread.id} is for sensitivity analysis only.`);
 
+  const ss = arg('special-sessions') ?? 'exclude';
+  if (ss !== 'exclude' && ss !== 'allow') throw new Error('--special-sessions must be exclude or allow');
+  const specialSessions = ss === 'allow' ? 'ALLOW_FILLS' : 'NO_FILLS';
+  if (specialSessions === 'ALLOW_FILLS') console.error('NOTE: fills allowed in Muhurat special sessions (policy of results frozen before 2026-10-04).');
+
   const root = dataDir('bhavcopy/nse-fo');
   const norm = join(root, 'normalized');
   const tradeDates = readdirSync(norm).filter((f) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(f)).map((f) => f.slice(0, 10)).sort();
@@ -53,16 +59,18 @@ function main(): number {
     to,
     spread,
     costOptions: { brokeragePlanId: planId },
+    specialSessions,
   });
   const data = computeDataVersion(root, tradeDates.filter((d) => d >= result.from && d <= result.to));
   const report = buildReport(result);
   const out = dataDir('backtests');
-  const base = join(out, `${strategy.id}_${result.from}_${result.to}_${planId}_${spread.id}`);
+  const base = join(out, `${strategy.id}_${result.from}_${result.to}_${planId}_${spread.id}${specialSessions === 'ALLOW_FILLS' ? '' : '_NO-SPECIAL-FILLS'}`);
   writeFileSync(`${base}.json`, JSON.stringify({ ...report, dataVersion: data }, null, 2));
   writeFileSync(`${base}.md`, renderMarkdown(report) + `\nData version: raw \`${data.rawSha256.slice(0, 16)}\`, normalized \`${data.normalizedSha256.slice(0, 16)}\` (${data.days} days).\n`);
 
   const a = report.all;
-  console.error(`${strategy.id} v${strategy.version} [${planId}, ${spread.id}]: ${result.from} → ${result.to}, ${result.trades.length} trades, ${result.skipped.length} skipped`);
+  if (result.deferredFills.length) console.error(`Fills deferred past special sessions: ${result.deferredFills.map((x) => `${x.signalDate}→after ${x.specialSession}`).join(', ')}`);
+  console.error(`${strategy.id} v${strategy.version} [${planId}, ${spread.id}, ${specialSessions}]: ${result.from} → ${result.to}, ${result.trades.length} trades, ${result.skipped.length} skipped`);
   console.error(`GROSS ${a.grossTotal.toFixed(2)} | COSTS ${a.costsTotal.toFixed(2)} | NET ${a.netTotal.toFixed(2)} | verdict: ${a.verdict}`);
   console.error(`Development: NET ${report.development.netTotal.toFixed(2)} (${report.development.trades} trades) | Out-of-sample: NET ${report.outOfSample.netTotal.toFixed(2)} (${report.outOfSample.trades} trades)`);
   console.error(`Data version: raw ${data.rawSha256.slice(0, 16)} normalized ${data.normalizedSha256.slice(0, 16)} (${data.days} days${data.missingRaw.length ? `, ${data.missingRaw.length} without raw zip` : ''})`);

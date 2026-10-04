@@ -43,6 +43,9 @@ def schedule(date):
     raise SystemExit(f"no schedule for {date}")
 
 
+# NSE Muhurat (Diwali) special sessions with a published F&O bhavcopy, typed from NSE notices.
+SPECIAL_SESSIONS = {"2024-11-01", "2025-10-21"}
+
 TXN = D("0.0003553")
 SEBI_PER_CRORE = D("10")
 STAMP_BUY = D("0.00003")
@@ -105,6 +108,8 @@ def main():
     if golden["spreadModel"] != "EOD_PESSIMISTIC_V1":
         raise SystemExit("only EOD_PESSIMISTIC_V1 is re-implemented")
     lo, hi = golden["from"], golden["to"]
+    # Golden files written before the policy existed ran with fills allowed in special sessions.
+    no_special_fills = golden.get("specialSessionPolicy", "ALLOW_FILLS") == "NO_FILLS"
 
     dates = sorted(f[:10] for f in os.listdir(a.data) if f.endswith(".csv.zip") and lo <= f[:10] <= hi)
     cache = {}
@@ -130,8 +135,8 @@ def main():
     pending = None
     for i, d in enumerate(dates):
         rows = day(d)
-        # fill
-        if pending:
+        # fill (under NO_FILLS a special session is skipped: the order waits for the next regular session)
+        if pending and not (no_special_fills and d in SPECIAL_SESSIONS):
             p, pending = pending, None
             if d < p["expiry"]:
                 legs = []
@@ -209,7 +214,7 @@ def main():
         diffs.append(f"{k}: in golden only")
     net = sum(D(str(t["netPnL"])) for t in trades)
     gross = sum(D(str(t["grossPnL"])) for t in trades)
-    print(f"independent: {len(trades)} trades, gross {gross}, net {net} (plan {plan}); golden: {golden['trades']} trades, gross {golden['grossTotal']}, net {golden['netTotal']}")
+    print(f"independent: {len(trades)} trades, gross {gross}, net {net} (plan {plan}, special-session fills {'excluded' if no_special_fills else 'allowed'}); golden: {golden['trades']} trades, gross {golden['grossTotal']}, net {golden['netTotal']}")
     if diffs:
         print(f"DIFFERENCES ({len(diffs)}):")
         for x in diffs[:50]:

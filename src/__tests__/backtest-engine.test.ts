@@ -196,6 +196,36 @@ describe('contract identity by instrument id (NSE expiry relabelling)', () => {
   });
 });
 
+describe('special (Muhurat) sessions', () => {
+  // Signal on Monday expiry 2025-10-20; 2025-10-21 is a Muhurat session; 2025-10-22 a holiday; next regular session 2025-10-23.
+  const S1 = '2025-10-20', MU = '2025-10-21', R = '2025-10-23', EX = '2025-10-28';
+  const at = (rows: BhavRecord[], date: string, map: Record<string, string>) =>
+    rows.map((r) => ({ ...r, tradeDate: date, expiry: map[r.expiry] ?? r.expiry, lotSize: 75 }));
+  const data: Record<string, BhavRecord[]> = {
+    [S1]: at(DATA[D1], S1, { [D1]: S1, [E]: EX }),
+    [MU]: at(DATA[D2], MU, { [E]: EX }).map((r) => ({ ...r, close: (r.close as number) * 2 })), // Muhurat closes differ
+    [R]: at(DATA[D2], R, { [E]: EX }),
+    [EX]: at(DATA[E], EX, { [E]: EX }),
+  };
+  const run = (specialSessions?: 'NO_FILLS' | 'ALLOW_FILLS') => runEodBacktest({
+    strategy: createRefIronCondor(), tradeDates: Object.keys(data), load: (d) => data[d], from: S1, to: EX,
+    requireContinuousData: false, specialSessions,
+  });
+
+  it('by default does not fill in a special session: the order waits for the next regular close', () => {
+    const res = run();
+    expect(res.specialSessionPolicy).toBe('NO_FILLS');
+    expect(res.deferredFills).toEqual([{ signalDate: S1, specialSession: MU }]);
+    expect(res.trades[0].entryDate).toBe(R);
+    expect(res.trades[0].legs.find((l) => l.strike === 24500)?.close).toBe(12); // regular-session close, not the doubled Muhurat close
+  });
+  it('ALLOW_FILLS reproduces the behaviour of results frozen before 2026-10-04', () => {
+    const res = run('ALLOW_FILLS');
+    expect(res.deferredFills).toEqual([]);
+    expect(res.trades[0].entryDate).toBe(MU);
+  });
+});
+
 describe('reference spec', () => {
   it('is a validated, versioned BACKTEST-status spec with a defined-risk structure', () => {
     expect(REF_IRON_CONDOR_SPEC.status).toBe('BACKTEST');

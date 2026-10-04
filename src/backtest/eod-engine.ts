@@ -28,7 +28,7 @@
 import type { BhavRecord } from '../history/bhavcopy.js';
 import { finalSettlementPrice } from '../history/bhavcopy.js';
 import { lotSizeFor, observationKey } from '../data/constants/lot-sizes.js';
-import { holidayDataStatus, isNseTradingHoliday } from '../data/constants/holidays.js';
+import { holidayDataStatus, isNseTradingHoliday, isSpecialSession } from '../data/constants/holidays.js';
 import { computeTradePnL, type TradePnL, type TradeInput } from '../pnl/pnl-engine.js';
 import { DEFAULT_BROKERAGE_PLAN, type CostOptions } from '../costs/transaction-cost-engine.js';
 
@@ -95,6 +95,8 @@ export interface EodStrategy {
   onEvening(ctx: EveningContext): Proposal | NoTrade | null;
 }
 
+export type SpecialSessionPolicy = 'NO_FILLS' | 'ALLOW_FILLS';
+
 export interface NoTrade {
   noTrade: string;
 }
@@ -132,6 +134,9 @@ export interface BacktestResult {
   strategyVersion: string;
   strategyFingerprint: string;
   spreadModel: string;
+  specialSessionPolicy: SpecialSessionPolicy;
+  /** Orders whose fill was deferred past a special session (NO_FILLS policy). */
+  deferredFills: Array<{ signalDate: string; specialSession: string }>;
   /** Brokerage plan used for every cost in this result (charge schedules are chosen by trade date). */
   brokeragePlanId: string;
   from: string;
@@ -159,6 +164,12 @@ export interface EngineInput {
   costOptions?: CostOptions;
   /** Throw on missing expected trading days (default true). Tests with sparse synthetic data set false. */
   requireContinuousData?: boolean;
+  /**
+   * Fills in special (Muhurat) sessions: 'NO_FILLS' (default) defers a pending order to the next
+   * regular session's close; 'ALLOW_FILLS' treats them like any session (behaviour of results frozen
+   * before 2026-10-04, e.g. EXP-0001/0002). Marks and settlement always use every published session.
+   */
+  specialSessions?: SpecialSessionPolicy;
 }
 
 const r2 = (x: number) => Math.round((x + Number.EPSILON) * 100) / 100;
@@ -242,6 +253,8 @@ export function runEodBacktest(input: EngineInput): BacktestResult {
 
   const trades: BacktestTrade[] = [];
   const skipped: SkippedSignal[] = [];
+  const policy: SpecialSessionPolicy = input.specialSessions ?? 'NO_FILLS';
+  const deferredFills: Array<{ signalDate: string; specialSession: string }> = [];
   const noTrade: Array<{ date: string; reason: string }> = [];
   const expiryRelabels: Array<{ date: string; from: string; to: string }> = [];
   type Pending = { proposal: Proposal; signalDate: string };
@@ -253,8 +266,11 @@ export function runEodBacktest(input: EngineInput): BacktestResult {
     const d = dates[i];
     const rows = rowsOf(d);
 
-    // 1. Fill a pending order at today's close (decided yesterday evening).
-    if (pending) {
+    // 1. Fill a pending order at today's close (decided yesterday evening). Under NO_FILLS a special
+    //    session is not a fill opportunity: the order waits for the next regular session.
+    if (pending && policy === 'NO_FILLS' && isSpecialSession(d)) {
+      deferredFills.push({ signalDate: pending.signalDate, specialSession: d });
+    } else if (pending) {
       const p: Pending = pending;
       pending = null;
       if (d >= p.proposal.expiry) {
@@ -341,6 +357,7 @@ export function runEodBacktest(input: EngineInput): BacktestResult {
     const proposal = out && !('noTrade' in out) ? out : null;
     if (proposal) {
       if (open) skipped.push({ signalDate: d, reason: 'Position already open' });
+      else if (pending) skipped.push({ signalDate: d, reason: 'Earlier order still waiting to fill' });
       else if (i === dates.length - 1) skipped.push({ signalDate: d, reason: 'No later trade date in range to fill' });
       else pending = { proposal, signalDate: d };
     }
@@ -351,6 +368,8 @@ export function runEodBacktest(input: EngineInput): BacktestResult {
     strategyVersion: strategy.version,
     strategyFingerprint: strategy.fingerprint,
     spreadModel: spread.id,
+    specialSessionPolicy: policy,
+    deferredFills,
     brokeragePlanId: input.costOptions?.brokeragePlanId ?? DEFAULT_BROKERAGE_PLAN,
     from: dates[0] ?? input.from,
     to: dates[dates.length - 1] ?? input.to,

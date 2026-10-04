@@ -7,7 +7,7 @@
  * Golden files are never edited to make a run pass; a changed result needs a new, documented file.
  */
 
-import type { BacktestResult } from './eod-engine.js';
+import type { BacktestResult, SpecialSessionPolicy } from './eod-engine.js';
 import type { DataVersion } from './data-version.js';
 
 export interface GoldenTrade {
@@ -28,6 +28,8 @@ export interface GoldenResult {
   strategyFingerprint: string;
   brokeragePlanId: string;
   spreadModel: string;
+  /** Absent in golden files written before the policy existed: those ran with ALLOW_FILLS. */
+  specialSessionPolicy?: SpecialSessionPolicy;
   from: string;
   to: string;
   data: DataVersion;
@@ -60,6 +62,7 @@ export function toGolden(label: string, result: BacktestResult, data: DataVersio
     strategyFingerprint: result.strategyFingerprint,
     brokeragePlanId: result.brokeragePlanId,
     spreadModel: result.spreadModel,
+    specialSessionPolicy: result.specialSessionPolicy,
     from: result.from,
     to: result.to,
     data,
@@ -83,6 +86,8 @@ export function compareGolden(expected: GoldenResult, actual: GoldenResult, note
   const keys = ['strategyId', 'strategyVersion', 'strategyFingerprint', 'brokeragePlanId', 'spreadModel', 'from', 'to',
     'trades', 'skipped', 'grossTotal', 'costsTotal', 'netTotal'] as const;
   for (const k of keys) if (expected[k] !== actual[k]) diffs.push(`${k}: expected ${expected[k]}, got ${actual[k]}`);
+  const ep = expected.specialSessionPolicy ?? 'ALLOW_FILLS', ap = actual.specialSessionPolicy ?? 'ALLOW_FILLS';
+  if (ep !== ap) diffs.push(`specialSessionPolicy: expected ${ep}, got ${ap}`);
   for (const k of ['days', 'rawSha256'] as const) {
     if (expected.data[k] !== actual.data[k]) diffs.push(`data.${k}: expected ${expected.data[k]}, got ${actual.data[k]}`);
   }

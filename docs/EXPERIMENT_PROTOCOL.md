@@ -30,9 +30,21 @@ Each entry records:
 | decision | PENDING → one of SURVIVES / REJECTED / INCONCLUSIVE / ABANDONED |
 | goldenFile | frozen per-trade result, if the run is to be reproducible exactly |
 
-Current registry: EXP-0001 (original reference run, r2), EXP-0002 (audited re-run, r3) and
-EXP-0003..0005 (spread sensitivity). All are REJECTED. EXP-0001's decision rule was written after
-the run, and its entry says so.
+Current registry:
+- EXP-0001: original reference run (r2).
+- EXP-0002: audited re-run (r3).
+- EXP-0003..0005: spread sensitivity.
+- EXP-0006: pre-registered test of the no-special-session-fill policy.
+- EXP-0007: the RESULT resolving EXP-0006.
+
+All decisions are REJECTED. EXP-0001's decision rule was written after the run, and its entry says so.
+
+**Pre-registration and results.** A hypothesis test is registered first with `decision: PENDING` and
+`result: null`, before any run. Its outcome is appended later as a separate `kind: RESULT` entry with
+`resolves: <id>`. The registry refuses a RESULT whose strategy, data, cost model, execution model,
+periods, parameters or decision rule differ from the pre-registration. It also refuses one that
+resolves an entry twice or resolves an entry that was not PENDING. A RESULT does not count as another
+trial.
 
 ## 2. Standard decision rule
 
@@ -80,6 +92,7 @@ npm run build
 node dist/bhavcopy-cli.mjs --from 2024-07-08 --to 2026-10-01   # downloads raw NSE files (~555 days)
 npm run backtest:verify             # audited result, EXP-0002, must print VERIFY OK
 npm run backtest:verify-original    # original result, EXP-0001 (superseded r2 plan)
+npm run backtest:verify-exp0006     # EXP-0006/0007 (no fills in special sessions; the current engine default)
 python scripts/verify_reference.py --golden src/strategy/reference/golden/ref_iron_condor_v1.0.0_audited_r3_v1.json
 ```
 

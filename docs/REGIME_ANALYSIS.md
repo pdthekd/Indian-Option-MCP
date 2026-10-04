@@ -1,7 +1,7 @@
 # Regime Analysis (Foundation Phase 9)
 
 Date: 2026-10-04. Subject: `ref_nifty_weekly_iron_condor` v1.0.0, audited run (EXP-0002), 104 trades.
-Module `src/analytics/regime.ts`; reproduce with `node dist/foundation-analysis-cli.mjs`.
+Module `src/analytics/regime.ts`; reproduce with `node dist/foundation-analysis-cli.mjs --special-sessions allow` (EXP-0002 predates the special-session policy).
 
 ## Rules of this analysis
 

@@ -34,6 +34,7 @@ function main(): void {
   const from = arg('from') ?? '2024-10-01';
   const to = arg('to') ?? '2026-10-01';
   const plan = arg('brokerage-plan') ?? DEFAULT_BROKERAGE_PLAN;
+  const specialSessions = (arg('special-sessions') ?? 'exclude') === 'allow' ? 'ALLOW_FILLS' : 'NO_FILLS';
   const norm = join(dataDir('bhavcopy/nse-fo'), 'normalized');
   const allDates = readdirSync(norm).filter((f) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(f)).map((f) => f.slice(0, 10)).sort();
 
@@ -53,7 +54,7 @@ function main(): void {
 
   const result = runEodBacktest({
     strategy: createRefIronCondor(), tradeDates: allDates, load: (d) => nifty.get(d) ?? [],
-    from, to, spread: EOD_PESSIMISTIC_V1, costOptions: { brokeragePlanId: plan },
+    from, to, spread: EOD_PESSIMISTIC_V1, costOptions: { brokeragePlanId: plan }, specialSessions,
   });
   const dates = allDates.filter((d) => d >= result.from && d <= result.to);
   const S = (d: string) => und[undDates.indexOf(d)];
@@ -112,12 +113,12 @@ function main(): void {
   const out = { generated: new Date().toISOString(), from: result.from, to: result.to, brokeragePlanId: plan, spreadModel: result.spreadModel,
     trades: result.trades.length, capital, margins, tail, tails, regimeThresholds: REGIME_THRESHOLDS, regimes: buckets,
     labels: rIn.map((t, i) => ({ tradeId: t.tradeId, ...labels[i], netPnL: t.netPnL })), calibration: calib, missingMarks };
-  const base = join(dataDir('backtests'), `foundation-analysis_${result.from}_${result.to}_${plan}`);
+  const base = join(dataDir('backtests'), `foundation-analysis_${result.from}_${result.to}_${plan}${specialSessions === 'ALLOW_FILLS' ? '' : '_NO-SPECIAL-FILLS'}`);
   writeFileSync(`${base}.json`, JSON.stringify(out, null, 2));
 
   const md: string[] = [];
   md.push(`# Foundation analysis: ${result.strategyId} v${result.strategyVersion}`, '');
-  md.push(`${result.from} → ${result.to}; ${result.trades.length} trades; brokerage ${plan}; spread ${result.spreadModel}. All P&L NET.`, '');
+  md.push(`${result.from} → ${result.to}; ${result.trades.length} trades; brokerage ${plan}; spread ${result.spreadModel}; special sessions ${specialSessions}. All P&L NET.`, '');
   md.push('## Capital (SPAN_PROXY, unverified)', '', '| Metric | Value |', '|---|---:|');
   md.push(`| Max capital per trade | ${inr(capital.maxCapitalPerTrade)} |`, `| Mean capital per trade | ${inr(capital.meanCapitalPerTrade)} |`);
   md.push(`| Max concurrent positions | ${capital.maxConcurrentPositions} |`, `| Utilization (days blocked) | ${pct(capital.utilization)} |`);
