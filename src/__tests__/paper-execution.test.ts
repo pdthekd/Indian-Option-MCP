@@ -246,12 +246,29 @@ describe('ExecutionEngine (human-in-the-loop)', () => {
     expect(pv.confirmationCode).toBeNull();
   });
 
-  it('lockouts: stale data, market closed, kill switch, broker disconnected', async () => {
+  it('lockouts: stale data, market closed, kill switch', async () => {
     const broker = newBroker({ marginModel: () => 0 });
     const { eng, ks } = mk(broker, { dataQuality: () => 'STALE', marketOpen: () => false, marginEstimate: () => 0 });
     ks.engage('manual');
     const pv = await eng.preview(debitSpread);
     expect(pv.risk.failed).toEqual(expect.arrayContaining(['data_quality', 'market_open', 'kill_switch']));
+  });
+
+  it('lockout: broker disconnected blocks preview, and a disconnect after preview blocks confirmation', async () => {
+    // Previously claimed by the test above's name but not exercised (Foundation audit, 2026-10-04).
+    const broker = newBroker({ marginModel: () => 0 });
+    const { eng } = mk(broker, { marginEstimate: () => 0 });
+    broker.setConnected(false);
+    // Fails closed before the gateway: a disconnected broker returns no quotes, so no preview (and no code) exists.
+    await expect(eng.preview(debitSpread)).rejects.toThrow(/disconnected/);
+
+    broker.setConnected(true);
+    const ok = await eng.preview(debitSpread);
+    expect(ok.risk.approved, ok.risk.failed.join(',')).toBe(true);
+    broker.setConnected(false);
+    await expect(eng.confirm(ok.previewId, ok.confirmationCode!, 'operator')).rejects.toThrow();
+    broker.setConnected(true);
+    expect((await broker.getOrders()).length).toBe(0);
   });
 
   it('expired preview cannot be confirmed', async () => {

@@ -30,25 +30,60 @@ is needed for any order API use.
 | Sandbox isolated from live credentials | separate demo key `sandboxdemo` [O] | "sandbox tokens cannot be used for live" [O] | [?] | n/a | n/a |
 | Kill-switch API | [?] | [?] | [?] (Dhan advertises a kill switch in-app [S]) | [?] | [?] |
 
-## Assessment for this system
+## Evaluation framework (Foundation phase, 2026-10-04)
 
-1. **Testing path:** Upstox's sandbox is the only one documented to support F&O order
-   placement explicitly; but it covers only place/modify/cancel — no positions, funds or
-   trades yet — so it cannot validate reconciliation. Kite's sandbox has richer order
-   lifecycle and portfolio APIs but documents only NSE equity LIMIT orders. **Neither sandbox
-   is sufficient to validate an options strategy end-to-end.** The in-repo PaperBroker remains
-   the primary test harness; a sandbox adapter would test only API mechanics (auth, payloads,
-   error codes, idempotency, cancel races).
-2. **Data for backtesting:** Dhan's expired-options API is the most promising lead for
-   point-in-time option history; licensing, bid/ask availability and completeness must be
-   checked.
-3. **Existing integration:** the codebase already has a read-only Kite data provider
-   (with defects listed in FUNCTIONAL_AUDIT F17). Kite Connect (₹500/mo) gives WebSocket and
-   historical candles needed for shadow trading.
-4. **Recommendation (engineering, not financial):** build `ZerodhaSandboxBroker` *only* to
-   exercise API mechanics, with `KITE_ENV=sandbox` as the default and a hard check that the
-   sandbox host is used with the demo key and the production host is never used with it.
-   Evaluate Upstox sandbox for F&O payload validation. Defer any live adapter (Phase 21).
+**No broker is selected or recommended.** A broker decision is premature while no strategy has
+reached SURVIVES (EXPERIMENT_PROTOCOL.md §2); the only tested strategy is REJECTED. This section
+fixes **how** a broker will be chosen when that changes, so the choice is not driven by convenience
+or by whichever API is already wired in.
+
+### Hard gates (any failure excludes the broker)
+
+| # | Gate | Evidence required |
+|---|---|---|
+| G1 | Official, documented order API for NSE index options | [O] API reference |
+| G2 | A non-production environment, or a documented way to test order payloads without real orders | [O] docs + a successful test call |
+| G3 | Sandbox/test credentials cannot reach production, and production credentials cannot be used in the sandbox | [O] docs + a negative test (expected rejection) |
+| G4 | Order status, positions, trades and funds available by API (needed for reconciliation) | [O] API reference + calls on a real account, read-only |
+| G5 | SEBI retail-algo compliance path (static IP, per-client key, daily session) workable for a single user | [O] broker notice |
+| G6 | Contract notes downloadable in a machine-readable form (for cost reconciliation) | sample note |
+| G7 | Credentials can be kept out of source control, logs and prompts (env/OS store; no long-lived tokens in files) | design review |
+
+### Scored criteria (only among brokers passing every gate)
+
+| Criterion | Weight | How measured |
+|---|---:|---|
+| Order lifecycle fidelity (ack, partial fill, reject, cancel race, idempotency key) | 25 | sandbox tests in a `BrokerAdapter` conformance suite |
+| Reconciliation completeness (orders ↔ trades ↔ positions ↔ funds ↔ contract note) | 20 | end-to-end on paper-sized real activity or sandbox |
+| Market data quality (two-sided quotes, depth, timestamps, OI) | 15 | compare with recorded NSE data |
+| Operational safety (kill switch / order-disable API, session expiry behaviour, rate limits) | 15 | docs + tests |
+| Total cost (API subscription + brokerage + exit/settlement charges) | 10 | reconciled contract notes, not the price list |
+| Reliability (documented outages, status page, support response) | 10 | 8 weeks of shadow-mode logs |
+| Historical option data access | 5 | point-in-time completeness check |
+
+Brokerage price is deliberately a minor weight: at 1-lot size the strategy's gross result dominates,
+and cost differences are measurable only through reconciled notes.
+
+### Procedure
+
+1. Re-verify the matrix above from official pages (many cells are [S] or [?]).
+2. Apply the gates. Record each result with its evidence link and date.
+3. Build a sandbox adapter only for gate-passing candidates: mechanics only (auth, payloads, error
+   codes, cancel races), with the sandbox host as default and a hard check that the production host
+   is never used with sandbox credentials.
+4. Run the same `BrokerAdapter` conformance suite against PaperBroker and each sandbox adapter.
+5. Score; write the decision and its evidence to this document. Live order capability stays disabled
+   (`TRADING_MODE=live` throws) until LIVE_TRADING_READINESS.md is fully met.
+
+### Facts already established (not a recommendation)
+
+- Upstox documents F&O order placement in its sandbox, but only place/modify/cancel; no positions,
+  funds or trades, so it cannot exercise reconciliation (G4 untested in sandbox).
+- Kite's sandbox documents NSE equity LIMIT orders; F&O is not mentioned. The codebase already has a
+  read-only Kite **market-data** provider, which is a convenience, not a selection criterion.
+- Dhan documents an expired-options data API: a lead for historical data, not for execution.
+- The cost model is reconciled only against Zerodha contract notes, because those are the notes
+  available. This must not bias the selection: other brokers' costs need their own reconciled notes.
 
 ## Not done
 
@@ -57,8 +92,8 @@ is needed for any order API use.
   Angel One and FYERS.
 - Legal review of NSE website scraping vs. licensed data.
 
-Note: this workstation also has an Angel One trading connector configured in the assistant
-environment. It was not used and must not be wired into this system: it bypasses the risk
+Note: this workstation also has Angel One, IBKR and INDmoney connectors configured in the assistant
+environment. They were not used and must not be wired into this system: they bypass the risk
 gateway and human-confirmation flow.
 
 ## Sources

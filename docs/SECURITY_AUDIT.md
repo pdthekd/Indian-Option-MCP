@@ -164,3 +164,24 @@ by every broker adapter; added as `src/utils/redact.ts` with tests.
 - The behaviour of the npm-published package (not this source).
 - Runtime behaviour against real Zerodha credentials (none used; none should be).
 - NSE's terms of use for automated access (legal review recommended).
+
+## Re-audit, Foundation phase (2026-10-04)
+
+| Check | Method | Result |
+|---|---|---|
+| Secrets / PII in the **full git history** | `git log --all -p` grepped for the account's client code, PAN-format strings, the owner's name and e-mail, private-key headers, GitHub/API token formats, `api_secret=` / `access_token=` assignments | **0 matches** |
+| Tracked files | `git ls-files` outside src/docs/scripts/.github/research | only project metadata (`.env.example` holds placeholders only) |
+| Personal broker files | Contract-note workbook and tradebook kept outside git; `.gitignore` now blocks `*.xlsx`, `*.xls`, `*.pdf`, tradebooks, contract-note JSON/CSV/ZIP, `*.pem`, `*.key`, `*access_token*`, `*.session` for every clone (previously only the local `.git/info/exclude`) | protected |
+| Contract-note pipeline | `scripts/contract_note_xlsx_to_json.py` drops name, address, PAN, client code and note numbers, salts and hashes order numbers, and **refuses to write inside a git working tree** (tested). Docs contain aggregates only | PASS |
+| Production dependencies | `npm audit --omit=dev` | 0 vulnerabilities |
+| Dev dependencies | `npm audit` | 2 moderate: vitest ≤ 4.1.10 / @vitest/mocker path traversal (GHSA-82fw-gwwq-j7x9). Dev/test only, never shipped or run on untrusted input. The fix is vitest 5 (breaking); **accepted, tracked** |
+| Order paths | grep for order/portfolio/margin/GTT endpoints and non-GET broker calls | none; the Kite provider calls only `/quote`, `/quote/ltp`, historical and instruments |
+| BrokerAdapter implementations | grep | only `PaperBroker` |
+| Live mode | `resolveTradingMode` | `TRADING_MODE=live` **throws unconditionally**. sandbox/shadow return `executionAllowed: false`. Unknown values throw. No silent fallback from paper/sandbox to live exists, because no live adapter exists |
+| MCP surface | the 29 registered tools | all analysis/estimation; **no tool can place orders, change trading mode or reach the ExecutionEngine** |
+| Assistant connectors | Angel One / IBKR / INDmoney connectors exist in the assistant environment | not used; not referenced by code; documented as must-not-wire |
+
+Residual risks: a future live adapter would be the first component able to move money. It must ship
+behind LIVE_TRADING_READINESS.md, a reviewed code change (not an environment variable), the redacting
+logger, and the RiskGateway / KillSwitch / human-confirmation path. The read-only Kite token, if
+configured, is a credential and must stay in the environment, never in files.

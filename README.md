@@ -32,12 +32,14 @@
 ---
 
 > [!WARNING]
-> **Status of this fork (audit branch, 2026-10-03): analytics only — NOT validated for trading.**
+> **Status of this fork (audit branch, 2026-10-04): analytics only — NOT validated for trading.**
 > An audit found and fixed critical defects (e.g. naked short calls reported with a finite max loss,
 > mixed-expiry chains, missing values shown as 0). Remaining blockers are listed in
 > [docs/LIVE_TRADING_READINESS.md](docs/LIVE_TRADING_READINESS.md) (decision: **NO-GO** for live trading).
-> Lot sizes, holiday calendars, margin estimates and several charge rates are **unverified**.
-> No strategy here has evidence of positive NET expectancy after costs. Not investment advice.
+> Lot sizes are derived from NSE bhavcopy and holidays from NSE circulars; option charges are reconciled
+> to contract notes. Margin estimates, the spread model and post-April-2026 charges remain **unverified**.
+> The only backtested strategy is **REJECTED** (negative NET expectancy); see
+> [docs/FOUNDATION_AUDIT.md](docs/FOUNDATION_AUDIT.md) (foundation: PASS WITH LIMITATIONS). Not investment advice.
 > See [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) and [docs/FUNCTIONAL_AUDIT.md](docs/FUNCTIONAL_AUDIT.md).
 
 ## 🆓 Free Alternative to Sensibull & Opstra
