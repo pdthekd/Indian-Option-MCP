@@ -5,7 +5,7 @@
  * (outside the repo).
  *
  *   node dist/record-quotes-cli.mjs [--symbols NIFTY,BANKNIFTY] [--interval 60]
- *                                   [--strikes 10] [--until 15:35] [--once]
+ *                                   [--strikes 10] [--until 15:35] [--max-hours 7] [--once]
  *
  * --until HH:MM  stop at this IST time (e.g. after the close).
  * Read-only: uses the same data provider as the MCP server; places no orders.
@@ -13,7 +13,7 @@
 
 import { createDataProvider } from '../data/provider-factory.js';
 import { QuoteRecorder } from '../history/quote-recorder.js';
-import { applyCycle, writeStatus, type RecorderStatus } from '../history/recorder-status.js';
+import { applyCycle, writeStatus, readStatus, type RecorderStatus } from '../history/recorder-status.js';
 import { isMarketOpen } from '../utils/date.js';
 import { dataDir } from '../history/paths.js';
 import { istDate } from '../utils/time.js';
@@ -46,7 +46,24 @@ async function main(): Promise<void> {
     stopMinute = Number(m[1]) * 60 + Number(m[2]);
   }
 
+  const maxHours = Number(arg('max-hours') ?? 7);
+  if (!(maxHours > 0 && maxHours <= 24)) throw new Error('--max-hours must be in (0, 24]');
+  const deadline = Date.now() + maxHours * 3600_000;
+
   const dir = dataDir('quotes/nse-fo');
+
+  // Single instance: refuse to start if another recorder is alive and updating its status.
+  const prev = readStatus(dir);
+  if (prev && prev.pid !== process.pid && !['STOPPED', 'ERROR'].includes(prev.state)) {
+    let alive = false;
+    try { process.kill(prev.pid, 0); alive = true; } catch { alive = false; }
+    const fresh = Date.now() - Date.parse(prev.updatedAt) < (prev.intervalSeconds * 3 + 60) * 1000;
+    if (alive && fresh) {
+      console.error(`Another recorder (pid ${prev.pid}) is already running; exiting.`);
+      return;
+    }
+  }
+
   const startedAt = new Date().toISOString();
   let status: RecorderStatus = {
     state: 'STARTING', pid: process.pid, startedAt, updatedAt: startedAt, istDate: istDate(), symbols,
@@ -70,6 +87,10 @@ async function main(): Promise<void> {
     do {
       if (stopMinute !== null && istMinutes(new Date()) >= stopMinute) {
         console.error(`Reached --until ${until} IST; stopping.`);
+        break;
+      }
+      if (Date.now() >= deadline) {
+        console.error(`Reached --max-hours ${maxHours}; stopping.`);
         break;
       }
       const started = Date.now();
