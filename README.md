@@ -40,6 +40,7 @@
 > to contract notes. Margin estimates, the spread model and post-April-2026 charges remain **unverified**.
 > The only backtested strategy is **REJECTED** (negative NET expectancy); see
 > [docs/FOUNDATION_AUDIT.md](docs/FOUNDATION_AUDIT.md) (foundation: PASS WITH LIMITATIONS). Not investment advice.
+> New here? Read the plain-English [User Guide / System Map](docs/USER_GUIDE.md) first.
 > See [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) and [docs/FUNCTIONAL_AUDIT.md](docs/FUNCTIONAL_AUDIT.md).
 
 ## 🆓 Free Alternative to Sensibull & Opstra
