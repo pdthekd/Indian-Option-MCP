@@ -28,8 +28,9 @@
 import type { BhavRecord } from '../history/bhavcopy.js';
 import { finalSettlementPrice } from '../history/bhavcopy.js';
 import { lotSizeFor, observationKey } from '../data/constants/lot-sizes.js';
+import { holidayDataStatus, isNseTradingHoliday } from '../data/constants/holidays.js';
 import { computeTradePnL, type TradePnL, type TradeInput } from '../pnl/pnl-engine.js';
-import type { CostOptions } from '../costs/transaction-cost-engine.js';
+import { DEFAULT_BROKERAGE_PLAN, type CostOptions } from '../costs/transaction-cost-engine.js';
 
 export interface SpreadModel {
   id: string;
@@ -47,6 +48,18 @@ export const EOD_PESSIMISTIC_V1: SpreadModel = {
   halfSpread: (close) => Math.max(0.1, 0.02 * close),
   description: 'Half-spread = max(₹0.10, 2% of close); not yet calibrated against recorded bid/ask.',
 };
+
+/**
+ * Spread models for SENSITIVITY ANALYSIS ONLY. The default stays EOD_PESSIMISTIC_V1 until
+ * recorded quotes support a calibrated model (docs/EXECUTION_CALIBRATION.md). A model is never
+ * chosen because it improves P&L.
+ */
+export const SPREAD_MODELS: Readonly<Record<string, SpreadModel>> = Object.freeze({
+  EOD_ZERO_SPREAD: { id: 'EOD_ZERO_SPREAD', halfSpread: () => 0, description: 'Fill at the close (unrealistic lower bound; sensitivity only).' },
+  EOD_ONE_TICK: { id: 'EOD_ONE_TICK', halfSpread: () => 0.05, description: 'Half-spread one tick (₹0.05); optimistic, sensitivity only.' },
+  EOD_PESSIMISTIC_V1,
+  EOD_PESSIMISTIC_V1_X2: { id: 'EOD_PESSIMISTIC_V1_X2', halfSpread: (c) => 2 * Math.max(0.1, 0.02 * c), description: 'Twice EOD_PESSIMISTIC_V1 (stress).' },
+});
 
 export interface LegProposal {
   type: 'CE' | 'PE';
@@ -109,6 +122,8 @@ export interface BacktestResult {
   strategyVersion: string;
   strategyFingerprint: string;
   spreadModel: string;
+  /** Brokerage plan used for every cost in this result (charge schedules are chosen by trade date). */
+  brokeragePlanId: string;
   from: string;
   to: string;
   tradeDatesUsed: number;
@@ -128,6 +143,8 @@ export interface EngineInput {
   to: string;
   spread?: SpreadModel;
   costOptions?: CostOptions;
+  /** Throw on missing expected trading days (default true). Tests with sparse synthetic data set false. */
+  requireContinuousData?: boolean;
 }
 
 const r2 = (x: number) => Math.round((x + Number.EPSILON) * 100) / 100;
@@ -165,10 +182,38 @@ export function aggregatePnL(id: string, legs: TradePnL[]): TradePnL {
   };
 }
 
+/**
+ * Weekdays in [from, to] that should have been trading days (not an NSE
+ * holiday in a year with OFFICIAL holiday data) but have no data. Years
+ * without official holiday data are not checked (reported separately).
+ */
+export function missingTradingDays(dates: readonly string[], from: string, to: string): { missing: string[]; uncheckedYears: number[] } {
+  const have = new Set(dates);
+  const missing: string[] = [];
+  const unchecked = new Set<number>();
+  const d = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    const iso = d.toISOString().slice(0, 10);
+    const dow = d.getUTCDay();
+    if (dow === 0 || dow === 6) continue;
+    const y = d.getUTCFullYear();
+    if (holidayDataStatus(y).verification !== 'OFFICIAL') { unchecked.add(y); continue; }
+    if (!isNseTradingHoliday(iso) && !have.has(iso)) missing.push(iso);
+  }
+  return { missing, uncheckedYears: [...unchecked].sort() };
+}
+
 export function runEodBacktest(input: EngineInput): BacktestResult {
   const { strategy, load } = input;
   const spread = input.spread ?? EOD_PESSIMISTIC_V1;
   const dates = input.tradeDates.filter((d) => d >= input.from && d <= input.to).sort();
+  if (dates.length > 0 && input.requireContinuousData !== false) {
+    const gap = missingTradingDays(dates, dates[0], dates[dates.length - 1]);
+    if (gap.missing.length > 0) {
+      throw new Error(`Data gap: no bhavcopy for expected trading day(s) ${gap.missing.slice(0, 10).join(', ')}. Download them or fix the holiday list before backtesting.`);
+    }
+  }
   const symbols = new Set(strategy.symbols);
   const rowsCache = new Map<string, BhavRecord[]>();
   const rowsOf = (d: string) => {
@@ -220,7 +265,10 @@ export function runEodBacktest(input: EngineInput): BacktestResult {
       }
     }
 
-    // 2. Settle an open position on its expiry day.
+    // 2. Settle an open position on its expiry day. Never let one silently survive past expiry.
+    if (open && d > open.proposal.expiry) {
+      throw new Error(`Position expiring ${open.proposal.expiry} was not settled: no data for its expiry day (next data ${d}).`);
+    }
     if (open && d === open.proposal.expiry) {
       const o: Open = open;
       open = null;
@@ -264,6 +312,7 @@ export function runEodBacktest(input: EngineInput): BacktestResult {
     strategyVersion: strategy.version,
     strategyFingerprint: strategy.fingerprint,
     spreadModel: spread.id,
+    brokeragePlanId: input.costOptions?.brokeragePlanId ?? DEFAULT_BROKERAGE_PLAN,
     from: dates[0] ?? input.from,
     to: dates[dates.length - 1] ?? input.to,
     tradeDatesUsed: dates.length,

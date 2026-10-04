@@ -6,17 +6,26 @@ import type { BrokeragePlan } from '../../costs/types.js';
 
 export const BROKERAGE_PLANS: readonly BrokeragePlan[] = Object.freeze([
   {
-    id: 'ZERODHA-FO-r2',
+    id: 'ZERODHA-FO-r3',
     broker: 'Zerodha',
     effectiveFrom: '2024-10-01',
     effectiveTo: null,
     options: { flatPerExecutedOrder: 20 },
     futures: { percentOfTurnover: 0.0003, capPerExecutedOrder: 20 },
-    expirySettlement: { flatPerContract: 20, appliesTo: ['EXERCISED', 'ASSIGNED', 'EXPIRED_OTM'] },
+    expirySettlement: { flatPerContract: 20, appliesTo: ['EXERCISED', 'ASSIGNED'] },
     physicalDeliveryPctOfContractValue: 0.0025,
     dealerOrderFee: 50,
     contractNote: { sttRounding: 'RUPEE_HALF_UP', stampDutyRounding: 'RUPEE_HALF_UP', gstSplit: 'CGST_SGST' },
     sources: [
+      {
+        description:
+          'Zerodha support article "What happens if the option contract is not squared off on the expiry date?": index options ' +
+          'expiring OTM/ATM are charged brokerage "only on one side ... not when they expire worthless"; ITM contracts settled on ' +
+          'expiry are charged "brokerage on both sides". Read 2026-10-04.',
+        url: 'https://support.zerodha.com/category/trading-and-markets/trading-faqs/f-otrading/articles/options-on-expiry-day',
+        retrieved: '2026-10-04',
+        verification: 'BROKER_PUBLISHED',
+      },
       {
         description:
           'Reconciled against the account holder\'s own Zerodha F&O contract notes: 41 trading days (May–Aug 2025), ' +
@@ -40,11 +49,27 @@ export const BROKERAGE_PLANS: readonly BrokeragePlan[] = Object.freeze([
       },
     ],
     notes: [
-      'Expiry settlement brokerage modelled as ₹20 per settled contract position, including OTM expiry — the page lists ' +
-        '"expired" contracts but does not state the amount. Conservative; confirm against a contract note.',
+      'Expiry settlement brokerage: ₹20 per ITM contract position exercised or assigned at expiry; none for OTM/ATM expiry ' +
+        '(per the Zerodha support article). The ₹20 amount for exercised/assigned contracts is not yet seen on a contract note.',
       'Brokerage is charged per EXECUTED ORDER; one order filled in several trades counts once.',
       'Dealer / auto square-off fee is available but not applied automatically (only when an order is flagged as dealer-placed).',
     ],
+  },
+  {
+    // SUPERSEDED by ZERODHA-FO-r3. Kept ONLY so results produced with it (e.g. the original
+    // ref_nifty_weekly_iron_condor v1.0.0 run) can be reproduced exactly. Do not use for new work.
+    id: 'ZERODHA-FO-r2',
+    broker: 'Zerodha',
+    effectiveFrom: '2024-10-01',
+    effectiveTo: null,
+    options: { flatPerExecutedOrder: 20 },
+    futures: { percentOfTurnover: 0.0003, capPerExecutedOrder: 20 },
+    expirySettlement: { flatPerContract: 20, appliesTo: ['EXERCISED', 'ASSIGNED', 'EXPIRED_OTM'] },
+    physicalDeliveryPctOfContractValue: 0.0025,
+    dealerOrderFee: 50,
+    contractNote: { sttRounding: 'RUPEE_HALF_UP', stampDutyRounding: 'RUPEE_HALF_UP', gstSplit: 'CGST_SGST' },
+    sources: [],
+    notes: ['SUPERSEDED: charges settlement brokerage on OTM/ATM expiry, which Zerodha does not charge. Reproduction only.'],
   },
   {
     id: 'ZERO-BROKERAGE-TEST',
@@ -64,6 +89,11 @@ export const BROKERAGE_PLANS: readonly BrokeragePlan[] = Object.freeze([
 
 /** Plans withdrawn because they were wrong. Audit only. */
 export const SUPERSEDED_BROKERAGE_PLANS: ReadonlyArray<{ id: string; supersededBy: string; reason: string }> = Object.freeze([
+  {
+    id: 'ZERODHA-FO-r2',
+    supersededBy: 'ZERODHA-FO-r3',
+    reason: 'Charged ₹20 settlement brokerage on options expiring OTM/ATM. Zerodha\x27s support article states no brokerage is charged when options expire worthless; only ITM exercised/assigned contracts are charged. r2 overstated costs (~₹94 per fully-OTM iron condor).',
+  },
   {
     id: 'ZERODHA-FO-2024-10-01',
     supersededBy: 'ZERODHA-FO-r2',

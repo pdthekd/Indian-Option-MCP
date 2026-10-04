@@ -21,6 +21,37 @@ export interface HolidayYear {
 }
 
 const YEARS: Readonly<Record<number, HolidayYear>> = Object.freeze({
+  2024: {
+    year: 2024,
+    verification: 'OFFICIAL',
+    source:
+      'NSE circular NSE/FAOP/59723 (Circular Ref. No. 188/2023), 12 Dec 2023, Futures & Options segment, ' +
+      '"Trading holidays for the calendar year 2024", https://nsearchives.nseindia.com/content/circulars/FAOP59723.pdf, ' +
+      'plus special closures (see notes) — read 2026-10-04',
+    holidays: {
+      '2024-01-26': 'Republic Day',
+      '2024-03-08': 'Mahashivratri',
+      '2024-03-25': 'Holi',
+      '2024-03-29': 'Good Friday',
+      '2024-04-11': 'Id-Ul-Fitr (Ramadan Eid)',
+      '2024-04-17': 'Shri Ram Navmi',
+      '2024-05-01': 'Maharashtra Day',
+      '2024-05-20': 'Special holiday: Parliamentary elections in Mumbai (NSE/CMTR/61518)',
+      '2024-06-17': 'Bakri Id',
+      '2024-07-17': 'Moharram',
+      '2024-08-15': 'Independence Day/Parsi New Year',
+      '2024-10-02': 'Mahatma Gandhi Jayanti',
+      '2024-11-01': 'Diwali Laxmi Pujan (Muhurat trading session held)',
+      '2024-11-15': 'Gurunanak Jayanti',
+      '2024-11-20': 'Special holiday: Maharashtra assembly elections (confirmed by absence of an F&O bhavcopy)',
+      '2024-12-25': 'Christmas',
+    },
+    notes: [
+      '2024-05-20 added by NSE/CMTR/61518 (8 Apr 2024). 2024-11-20 is not in the annual circular; it is included because no ' +
+        'F&O bhavcopy exists for that date (special closure for the Maharashtra assembly elections, reported at the time).',
+      'Muhurat trading was conducted on 2024-11-01 (a holiday); that special session is not a regular trading day.',
+    ],
+  },
   2025: {
     year: 2025,
     verification: 'OFFICIAL',

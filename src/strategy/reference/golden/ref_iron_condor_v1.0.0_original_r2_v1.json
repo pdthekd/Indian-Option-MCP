@@ -1,0 +1,962 @@
+{
+  "schema": 1,
+  "label": "ORIGINAL v1.0.0 run 2026-10-04 (r2 plan, superseded)",
+  "strategyId": "ref_nifty_weekly_iron_condor",
+  "strategyVersion": "1.0.0",
+  "strategyFingerprint": "e76741da1eea511ad72875572ecdccb6adf72dc8318ef196b5ed3ad6b38752aa",
+  "brokeragePlanId": "ZERODHA-FO-r2",
+  "spreadModel": "EOD_PESSIMISTIC_V1",
+  "from": "2024-10-01",
+  "to": "2026-10-01",
+  "data": {
+    "from": "2024-10-01",
+    "to": "2026-10-01",
+    "days": 495,
+    "rawSha256": "1dec6fbd068c4f3b0f7e59acbe67d9e211797935bd782fd25e2cd013bb09270f",
+    "normalizedSha256": "223e2874f2f4eb7ce4882eea1809a563c5266b0400293ea62d4692684dbec633",
+    "missingRaw": []
+  },
+  "trades": 104,
+  "skipped": 0,
+  "grossTotal": -34259.75,
+  "costsTotal": 35716.48,
+  "netTotal": -69976.23,
+  "perTrade": [
+    {
+      "id": "NIFTY-2024-10-10",
+      "entryDate": "2024-10-04",
+      "settlementPrice": 24998.45,
+      "grossPnL": 1180,
+      "totalCosts": 262.47,
+      "slippage": 70,
+      "netPnL": 917.53
+    },
+    {
+      "id": "NIFTY-2024-10-17",
+      "entryDate": "2024-10-11",
+      "settlementPrice": 24749.85,
+      "grossPnL": 492.5,
+      "totalCosts": 216.39,
+      "slippage": 26.25,
+      "netPnL": 276.11
+    },
+    {
+      "id": "NIFTY-2024-10-24",
+      "entryDate": "2024-10-18",
+      "settlementPrice": 24399.4,
+      "grossPnL": 561.25,
+      "totalCosts": 215.14,
+      "slippage": 25,
+      "netPnL": 346.11
+    },
+    {
+      "id": "NIFTY-2024-10-31",
+      "entryDate": "2024-10-25",
+      "settlementPrice": 24205.35,
+      "grossPnL": 940,
+      "totalCosts": 242.76,
+      "slippage": 51.25,
+      "netPnL": 697.24
+    },
+    {
+      "id": "NIFTY-2024-11-07",
+      "entryDate": "2024-11-01",
+      "settlementPrice": 24199.35,
+      "grossPnL": 1417.5,
+      "totalCosts": 259.94,
+      "slippage": 67.5,
+      "netPnL": 1157.56
+    },
+    {
+      "id": "NIFTY-2024-11-14",
+      "entryDate": "2024-11-08",
+      "settlementPrice": 23532.7,
+      "grossPnL": -3593.75,
+      "totalCosts": 220.35,
+      "slippage": 30,
+      "netPnL": -3814.1
+    },
+    {
+      "id": "NIFTY-2024-11-21",
+      "entryDate": "2024-11-18",
+      "settlementPrice": 23349.9,
+      "grossPnL": 327.5,
+      "totalCosts": 205.79,
+      "slippage": 16.25,
+      "netPnL": 121.71
+    },
+    {
+      "id": "NIFTY-2024-11-28",
+      "entryDate": "2024-11-22",
+      "settlementPrice": 23914.15,
+      "grossPnL": 1523.75,
+      "totalCosts": 373.28,
+      "slippage": 175,
+      "netPnL": 1150.47
+    },
+    {
+      "id": "NIFTY-2024-12-05",
+      "entryDate": "2024-11-29",
+      "settlementPrice": 24708.4,
+      "grossPnL": -4916.25,
+      "totalCosts": 246.03,
+      "slippage": 52.5,
+      "netPnL": -5162.28
+    },
+    {
+      "id": "NIFTY-2024-12-12",
+      "entryDate": "2024-12-06",
+      "settlementPrice": 24548.7,
+      "grossPnL": 890,
+      "totalCosts": 236.18,
+      "slippage": 45,
+      "netPnL": 653.82
+    },
+    {
+      "id": "NIFTY-2024-12-19",
+      "entryDate": "2024-12-13",
+      "settlementPrice": 23951.7,
+      "grossPnL": -1535,
+      "totalCosts": 227.08,
+      "slippage": 36.25,
+      "netPnL": -1762.08
+    },
+    {
+      "id": "NIFTY-2024-12-26",
+      "entryDate": "2024-12-20",
+      "settlementPrice": 23750.2,
+      "grossPnL": 1698.75,
+      "totalCosts": 288.87,
+      "slippage": 95,
+      "netPnL": 1409.88
+    },
+    {
+      "id": "NIFTY-2025-01-02",
+      "entryDate": "2024-12-27",
+      "settlementPrice": 24188.65,
+      "grossPnL": 1597.5,
+      "totalCosts": 259.96,
+      "slippage": 67.5,
+      "netPnL": 1337.54
+    },
+    {
+      "id": "NIFTY-2025-01-09",
+      "entryDate": "2025-01-03",
+      "settlementPrice": 23526.5,
+      "grossPnL": -10218.75,
+      "totalCosts": 319.17,
+      "slippage": 123.75,
+      "netPnL": -10537.92
+    },
+    {
+      "id": "NIFTY-2025-01-16",
+      "entryDate": "2025-01-10",
+      "settlementPrice": 23311.8,
+      "grossPnL": 2790,
+      "totalCosts": 331.14,
+      "slippage": 135,
+      "netPnL": 2458.86
+    },
+    {
+      "id": "NIFTY-2025-01-23",
+      "entryDate": "2025-01-17",
+      "settlementPrice": 23205.35,
+      "grossPnL": 2336.25,
+      "totalCosts": 311.14,
+      "slippage": 116.25,
+      "netPnL": 2025.11
+    },
+    {
+      "id": "NIFTY-2025-01-30",
+      "entryDate": "2025-01-24",
+      "settlementPrice": 23249.5,
+      "grossPnL": 877.5,
+      "totalCosts": 233.57,
+      "slippage": 42.5,
+      "netPnL": 643.93
+    },
+    {
+      "id": "NIFTY-2025-02-06",
+      "entryDate": "2025-01-31",
+      "settlementPrice": 23603.35,
+      "grossPnL": 7383.75,
+      "totalCosts": 678.59,
+      "slippage": 465,
+      "netPnL": 6705.16
+    },
+    {
+      "id": "NIFTY-2025-02-13",
+      "entryDate": "2025-02-07",
+      "settlementPrice": 23031.4,
+      "grossPnL": -3153.75,
+      "totalCosts": 275.83,
+      "slippage": 82.5,
+      "netPnL": -3429.58
+    },
+    {
+      "id": "NIFTY-2025-02-20",
+      "entryDate": "2025-02-14",
+      "settlementPrice": 22913.15,
+      "grossPnL": 2932.5,
+      "totalCosts": 327.13,
+      "slippage": 131.25,
+      "netPnL": 2605.37
+    },
+    {
+      "id": "NIFTY-2025-02-27",
+      "entryDate": "2025-02-21",
+      "settlementPrice": 22545.05,
+      "grossPnL": 2002.5,
+      "totalCosts": 283.37,
+      "slippage": 90,
+      "netPnL": 1719.13
+    },
+    {
+      "id": "NIFTY-2025-03-06",
+      "entryDate": "2025-02-28",
+      "settlementPrice": 22544.7,
+      "grossPnL": 4488.75,
+      "totalCosts": 410.09,
+      "slippage": 210,
+      "netPnL": 4078.66
+    },
+    {
+      "id": "NIFTY-2025-03-13",
+      "entryDate": "2025-03-07",
+      "settlementPrice": 22397.2,
+      "grossPnL": 1698.75,
+      "totalCosts": 259.98,
+      "slippage": 67.5,
+      "netPnL": 1438.77
+    },
+    {
+      "id": "NIFTY-2025-03-20",
+      "entryDate": "2025-03-17",
+      "settlementPrice": 23190.65,
+      "grossPnL": -17610,
+      "totalCosts": 244.46,
+      "slippage": 45,
+      "netPnL": -17854.46
+    },
+    {
+      "id": "NIFTY-2025-03-27",
+      "entryDate": "2025-03-21",
+      "settlementPrice": 23591.95,
+      "grossPnL": 1612.5,
+      "totalCosts": 271.44,
+      "slippage": 78.75,
+      "netPnL": 1341.06
+    },
+    {
+      "id": "NIFTY-2025-04-03",
+      "entryDate": "2025-03-28",
+      "settlementPrice": 23250.1,
+      "grossPnL": 1076.25,
+      "totalCosts": 263.6,
+      "slippage": 71.25,
+      "netPnL": 812.65
+    },
+    {
+      "id": "NIFTY-2025-04-09",
+      "entryDate": "2025-04-04",
+      "settlementPrice": 22399.15,
+      "grossPnL": -15172.5,
+      "totalCosts": 360.26,
+      "slippage": 153.75,
+      "netPnL": -15532.76
+    },
+    {
+      "id": "NIFTY-2025-04-17",
+      "entryDate": "2025-04-11",
+      "settlementPrice": 23851.65,
+      "grossPnL": -9101.25,
+      "totalCosts": 1005.16,
+      "slippage": 708.75,
+      "netPnL": -10106.41
+    },
+    {
+      "id": "NIFTY-2025-04-24",
+      "entryDate": "2025-04-21",
+      "settlementPrice": 24246.7,
+      "grossPnL": 2670,
+      "totalCosts": 342.77,
+      "slippage": 146.25,
+      "netPnL": 2327.23
+    },
+    {
+      "id": "NIFTY-2025-04-30",
+      "entryDate": "2025-04-25",
+      "settlementPrice": 24334.2,
+      "grossPnL": 3041.25,
+      "totalCosts": 433.13,
+      "slippage": 232.5,
+      "netPnL": 2608.12
+    },
+    {
+      "id": "NIFTY-2025-05-08",
+      "entryDate": "2025-05-02",
+      "settlementPrice": 24273.8,
+      "grossPnL": 2328.75,
+      "totalCosts": 385.57,
+      "slippage": 187.5,
+      "netPnL": 1943.18
+    },
+    {
+      "id": "NIFTY-2025-05-15",
+      "entryDate": "2025-05-09",
+      "settlementPrice": 25062.1,
+      "grossPnL": -14696.25,
+      "totalCosts": 658.32,
+      "slippage": 446.25,
+      "netPnL": -15354.57
+    },
+    {
+      "id": "NIFTY-2025-05-22",
+      "entryDate": "2025-05-16",
+      "settlementPrice": 24609.7,
+      "grossPnL": 3037.5,
+      "totalCosts": 362.67,
+      "slippage": 165,
+      "netPnL": 2674.83
+    },
+    {
+      "id": "NIFTY-2025-05-29",
+      "entryDate": "2025-05-23",
+      "settlementPrice": 24833.6,
+      "grossPnL": 5088.75,
+      "totalCosts": 461.53,
+      "slippage": 258.75,
+      "netPnL": 4627.22
+    },
+    {
+      "id": "NIFTY-2025-06-05",
+      "entryDate": "2025-05-30",
+      "settlementPrice": 24750.9,
+      "grossPnL": 3693.75,
+      "totalCosts": 378.65,
+      "slippage": 180,
+      "netPnL": 3315.1
+    },
+    {
+      "id": "NIFTY-2025-06-12",
+      "entryDate": "2025-06-06",
+      "settlementPrice": 24888.2,
+      "grossPnL": 4316.25,
+      "totalCosts": 390.63,
+      "slippage": 191.25,
+      "netPnL": 3925.62
+    },
+    {
+      "id": "NIFTY-2025-06-19",
+      "entryDate": "2025-06-13",
+      "settlementPrice": 24793.25,
+      "grossPnL": 3142.5,
+      "totalCosts": 409.72,
+      "slippage": 210,
+      "netPnL": 2732.78
+    },
+    {
+      "id": "NIFTY-2025-06-26",
+      "entryDate": "2025-06-20",
+      "settlementPrice": 25549,
+      "grossPnL": -14167.5,
+      "totalCosts": 402.47,
+      "slippage": 202.5,
+      "netPnL": -14569.97
+    },
+    {
+      "id": "NIFTY-2025-07-03",
+      "entryDate": "2025-06-27",
+      "settlementPrice": 25405.3,
+      "grossPnL": 1597.5,
+      "totalCosts": 267.66,
+      "slippage": 75,
+      "netPnL": 1329.84
+    },
+    {
+      "id": "NIFTY-2025-07-10",
+      "entryDate": "2025-07-04",
+      "settlementPrice": 25355.25,
+      "grossPnL": 1395,
+      "totalCosts": 259.55,
+      "slippage": 67.5,
+      "netPnL": 1135.45
+    },
+    {
+      "id": "NIFTY-2025-07-17",
+      "entryDate": "2025-07-11",
+      "settlementPrice": 25111.45,
+      "grossPnL": 1308.75,
+      "totalCosts": 263.5,
+      "slippage": 71.25,
+      "netPnL": 1045.25
+    },
+    {
+      "id": "NIFTY-2025-07-24",
+      "entryDate": "2025-07-18",
+      "settlementPrice": 25062.1,
+      "grossPnL": 1421.25,
+      "totalCosts": 263.56,
+      "slippage": 71.25,
+      "netPnL": 1157.69
+    },
+    {
+      "id": "NIFTY-2025-07-31",
+      "entryDate": "2025-07-25",
+      "settlementPrice": 24768.35,
+      "grossPnL": 1807.5,
+      "totalCosts": 279.43,
+      "slippage": 86.25,
+      "netPnL": 1528.07
+    },
+    {
+      "id": "NIFTY-2025-08-07",
+      "entryDate": "2025-08-01",
+      "settlementPrice": 24596.15,
+      "grossPnL": 2448.75,
+      "totalCosts": 323,
+      "slippage": 127.5,
+      "netPnL": 2125.75
+    },
+    {
+      "id": "NIFTY-2025-08-14",
+      "entryDate": "2025-08-08",
+      "settlementPrice": 24631.3,
+      "grossPnL": 2013.75,
+      "totalCosts": 299.08,
+      "slippage": 105,
+      "netPnL": 1714.67
+    },
+    {
+      "id": "NIFTY-2025-08-21",
+      "entryDate": "2025-08-18",
+      "settlementPrice": 25083.75,
+      "grossPnL": 2133.75,
+      "totalCosts": 275.67,
+      "slippage": 82.5,
+      "netPnL": 1858.08
+    },
+    {
+      "id": "NIFTY-2025-08-28",
+      "entryDate": "2025-08-22",
+      "settlementPrice": 24500.9,
+      "grossPnL": -2396.25,
+      "totalCosts": 259.45,
+      "slippage": 67.5,
+      "netPnL": -2655.7
+    },
+    {
+      "id": "NIFTY-2025-09-02",
+      "entryDate": "2025-08-29",
+      "settlementPrice": 24579.6,
+      "grossPnL": 435,
+      "totalCosts": 223.73,
+      "slippage": 33.75,
+      "netPnL": 211.27
+    },
+    {
+      "id": "NIFTY-2025-09-09",
+      "entryDate": "2025-09-03",
+      "settlementPrice": 24868.6,
+      "grossPnL": 1012.5,
+      "totalCosts": 243.83,
+      "slippage": 52.5,
+      "netPnL": 768.67
+    },
+    {
+      "id": "NIFTY-2025-09-16",
+      "entryDate": "2025-09-10",
+      "settlementPrice": 25239.1,
+      "grossPnL": 843.75,
+      "totalCosts": 236.13,
+      "slippage": 45,
+      "netPnL": 607.62
+    },
+    {
+      "id": "NIFTY-2025-09-23",
+      "entryDate": "2025-09-17",
+      "settlementPrice": 25169.5,
+      "grossPnL": 911.25,
+      "totalCosts": 236.11,
+      "slippage": 45,
+      "netPnL": 675.14
+    },
+    {
+      "id": "NIFTY-2025-09-30",
+      "entryDate": "2025-09-24",
+      "settlementPrice": 24611.1,
+      "grossPnL": -2238.75,
+      "totalCosts": 231.91,
+      "slippage": 41.25,
+      "netPnL": -2470.66
+    },
+    {
+      "id": "NIFTY-2025-10-07",
+      "entryDate": "2025-10-01",
+      "settlementPrice": 25108.3,
+      "grossPnL": 918.75,
+      "totalCosts": 235.9,
+      "slippage": 45,
+      "netPnL": 682.85
+    },
+    {
+      "id": "NIFTY-2025-10-14",
+      "entryDate": "2025-10-08",
+      "settlementPrice": 25145.5,
+      "grossPnL": 588.75,
+      "totalCosts": 227.99,
+      "slippage": 37.5,
+      "netPnL": 360.76
+    },
+    {
+      "id": "NIFTY-2025-10-20",
+      "entryDate": "2025-10-15",
+      "settlementPrice": 25843.15,
+      "grossPnL": -13308.75,
+      "totalCosts": 243.91,
+      "slippage": 52.5,
+      "netPnL": -13552.66
+    },
+    {
+      "id": "NIFTY-2025-10-28",
+      "entryDate": "2025-10-21",
+      "settlementPrice": 25936.2,
+      "grossPnL": 982.5,
+      "totalCosts": 247.72,
+      "slippage": 56.25,
+      "netPnL": 734.78
+    },
+    {
+      "id": "NIFTY-2025-11-04",
+      "entryDate": "2025-10-29",
+      "settlementPrice": 25597.65,
+      "grossPnL": 2032.5,
+      "totalCosts": 275.76,
+      "slippage": 82.5,
+      "netPnL": 1756.74
+    },
+    {
+      "id": "NIFTY-2025-11-11",
+      "entryDate": "2025-11-06",
+      "settlementPrice": 25694.95,
+      "grossPnL": 472.5,
+      "totalCosts": 223.91,
+      "slippage": 33.75,
+      "netPnL": 248.59
+    },
+    {
+      "id": "NIFTY-2025-11-18",
+      "entryDate": "2025-11-12",
+      "settlementPrice": 25910.05,
+      "grossPnL": 1972.5,
+      "totalCosts": 275.67,
+      "slippage": 82.5,
+      "netPnL": 1696.83
+    },
+    {
+      "id": "NIFTY-2025-11-25",
+      "entryDate": "2025-11-19",
+      "settlementPrice": 25884.8,
+      "grossPnL": 1770,
+      "totalCosts": 267.72,
+      "slippage": 75,
+      "netPnL": 1502.28
+    },
+    {
+      "id": "NIFTY-2025-12-02",
+      "entryDate": "2025-11-26",
+      "settlementPrice": 26032.2,
+      "grossPnL": 2936.25,
+      "totalCosts": 295.86,
+      "slippage": 101.25,
+      "netPnL": 2640.39
+    },
+    {
+      "id": "NIFTY-2025-12-09",
+      "entryDate": "2025-12-03",
+      "settlementPrice": 25839.65,
+      "grossPnL": 753.75,
+      "totalCosts": 232.03,
+      "slippage": 41.25,
+      "netPnL": 521.72
+    },
+    {
+      "id": "NIFTY-2025-12-16",
+      "entryDate": "2025-12-10",
+      "settlementPrice": 25860.1,
+      "grossPnL": 915,
+      "totalCosts": 247.66,
+      "slippage": 56.25,
+      "netPnL": 667.34
+    },
+    {
+      "id": "NIFTY-2025-12-23",
+      "entryDate": "2025-12-17",
+      "settlementPrice": 26177.15,
+      "grossPnL": 521.25,
+      "totalCosts": 227.96,
+      "slippage": 37.5,
+      "netPnL": 293.29
+    },
+    {
+      "id": "NIFTY-2025-12-30",
+      "entryDate": "2025-12-24",
+      "settlementPrice": 25938.85,
+      "grossPnL": 191.25,
+      "totalCosts": 219.58,
+      "slippage": 30,
+      "netPnL": -28.33
+    },
+    {
+      "id": "NIFTY-2026-01-06",
+      "entryDate": "2025-12-31",
+      "settlementPrice": 26178.7,
+      "grossPnL": 643.5,
+      "totalCosts": 226.12,
+      "slippage": 35.75,
+      "netPnL": 417.38
+    },
+    {
+      "id": "NIFTY-2026-01-13",
+      "entryDate": "2026-01-07",
+      "settlementPrice": 25732.3,
+      "grossPnL": 266.5,
+      "totalCosts": 218.91,
+      "slippage": 29.25,
+      "netPnL": 47.59
+    },
+    {
+      "id": "NIFTY-2026-01-20",
+      "entryDate": "2026-01-14",
+      "settlementPrice": 25232.5,
+      "grossPnL": 955.5,
+      "totalCosts": 246.68,
+      "slippage": 55.25,
+      "netPnL": 708.82
+    },
+    {
+      "id": "NIFTY-2026-01-27",
+      "entryDate": "2026-01-21",
+      "settlementPrice": 25175.4,
+      "grossPnL": 1852.5,
+      "totalCosts": 294.83,
+      "slippage": 100.75,
+      "netPnL": 1557.67
+    },
+    {
+      "id": "NIFTY-2026-02-03",
+      "entryDate": "2026-01-28",
+      "settlementPrice": 25727.55,
+      "grossPnL": 2648.75,
+      "totalCosts": 415.14,
+      "slippage": 214.5,
+      "netPnL": 2233.61
+    },
+    {
+      "id": "NIFTY-2026-02-10",
+      "entryDate": "2026-02-04",
+      "settlementPrice": 25935.15,
+      "grossPnL": 1914.25,
+      "totalCosts": 305.02,
+      "slippage": 110.5,
+      "netPnL": 1609.23
+    },
+    {
+      "id": "NIFTY-2026-02-17",
+      "entryDate": "2026-02-11",
+      "settlementPrice": 25725.4,
+      "grossPnL": 763.75,
+      "totalCosts": 250.11,
+      "slippage": 58.5,
+      "netPnL": 513.64
+    },
+    {
+      "id": "NIFTY-2026-02-24",
+      "entryDate": "2026-02-18",
+      "settlementPrice": 25424.65,
+      "grossPnL": 1176.5,
+      "totalCosts": 267.22,
+      "slippage": 74.75,
+      "netPnL": 909.28
+    },
+    {
+      "id": "NIFTY-2026-03-02",
+      "entryDate": "2026-02-25",
+      "settlementPrice": 24865.7,
+      "grossPnL": -536.25,
+      "totalCosts": 281.13,
+      "slippage": 87.75,
+      "netPnL": -817.38
+    },
+    {
+      "id": "NIFTY-2026-03-10",
+      "entryDate": "2026-03-04",
+      "settlementPrice": 24261.6,
+      "grossPnL": -16.25,
+      "totalCosts": 868.08,
+      "slippage": 646.75,
+      "netPnL": -884.33
+    },
+    {
+      "id": "NIFTY-2026-03-17",
+      "entryDate": "2026-03-11",
+      "settlementPrice": 23581.15,
+      "grossPnL": -4787.25,
+      "totalCosts": 803.47,
+      "slippage": 585,
+      "netPnL": -5590.72
+    },
+    {
+      "id": "NIFTY-2026-03-24",
+      "entryDate": "2026-03-18",
+      "settlementPrice": 22912.4,
+      "grossPnL": -7936.5,
+      "totalCosts": 476.21,
+      "slippage": 273,
+      "netPnL": -8412.71
+    },
+    {
+      "id": "NIFTY-2026-03-30",
+      "entryDate": "2026-03-25",
+      "settlementPrice": 22331.4,
+      "grossPnL": 419.25,
+      "totalCosts": 818.08,
+      "slippage": 598,
+      "netPnL": -398.83
+    },
+    {
+      "id": "NIFTY-2026-04-07",
+      "entryDate": "2026-04-01",
+      "settlementPrice": 23123.65,
+      "grossPnL": -7848.75,
+      "totalCosts": 944.71,
+      "slippage": 702,
+      "netPnL": -8793.46
+    },
+    {
+      "id": "NIFTY-2026-04-13",
+      "entryDate": "2026-04-08",
+      "settlementPrice": 23842.65,
+      "grossPnL": -3594.5,
+      "totalCosts": 1328.94,
+      "slippage": 1069.25,
+      "netPnL": -4923.44
+    },
+    {
+      "id": "NIFTY-2026-04-21",
+      "entryDate": "2026-04-15",
+      "settlementPrice": 24576.6,
+      "grossPnL": -8040.5,
+      "totalCosts": 585.28,
+      "slippage": 370.5,
+      "netPnL": -8625.78
+    },
+    {
+      "id": "NIFTY-2026-04-28",
+      "entryDate": "2026-04-22",
+      "settlementPrice": 23995.7,
+      "grossPnL": 588.25,
+      "totalCosts": 452.78,
+      "slippage": 247,
+      "netPnL": 135.47
+    },
+    {
+      "id": "NIFTY-2026-05-05",
+      "entryDate": "2026-04-29",
+      "settlementPrice": 24032.8,
+      "grossPnL": 3633.5,
+      "totalCosts": 383.74,
+      "slippage": 182,
+      "netPnL": 3249.76
+    },
+    {
+      "id": "NIFTY-2026-05-12",
+      "entryDate": "2026-05-06",
+      "settlementPrice": 23379.55,
+      "grossPnL": -5713.5,
+      "totalCosts": 488.13,
+      "slippage": 279.5,
+      "netPnL": -6201.63
+    },
+    {
+      "id": "NIFTY-2026-05-19",
+      "entryDate": "2026-05-13",
+      "settlementPrice": 23618,
+      "grossPnL": 4420,
+      "totalCosts": 470.08,
+      "slippage": 263.25,
+      "netPnL": 3949.92
+    },
+    {
+      "id": "NIFTY-2026-05-26",
+      "entryDate": "2026-05-20",
+      "settlementPrice": 23913.7,
+      "grossPnL": 3539.25,
+      "totalCosts": 383.49,
+      "slippage": 182,
+      "netPnL": 3155.76
+    },
+    {
+      "id": "NIFTY-2026-06-02",
+      "entryDate": "2026-05-27",
+      "settlementPrice": 23483.55,
+      "grossPnL": 1771.25,
+      "totalCosts": 272.05,
+      "slippage": 78,
+      "netPnL": 1499.2
+    },
+    {
+      "id": "NIFTY-2026-06-09",
+      "entryDate": "2026-06-03",
+      "settlementPrice": 23242.1,
+      "grossPnL": 3048.5,
+      "totalCosts": 372.9,
+      "slippage": 172.25,
+      "netPnL": 2675.6
+    },
+    {
+      "id": "NIFTY-2026-06-16",
+      "entryDate": "2026-06-10",
+      "settlementPrice": 23989.15,
+      "grossPnL": -13156,
+      "totalCosts": 310.41,
+      "slippage": 113.75,
+      "netPnL": -13466.41
+    },
+    {
+      "id": "NIFTY-2026-06-23",
+      "entryDate": "2026-06-17",
+      "settlementPrice": 23824.1,
+      "grossPnL": 1703,
+      "totalCosts": 275.78,
+      "slippage": 81.25,
+      "netPnL": 1427.22
+    },
+    {
+      "id": "NIFTY-2026-06-30",
+      "entryDate": "2026-06-24",
+      "settlementPrice": 23865.75,
+      "grossPnL": 1878.5,
+      "totalCosts": 279.32,
+      "slippage": 84.5,
+      "netPnL": 1599.18
+    },
+    {
+      "id": "NIFTY-2026-07-07",
+      "entryDate": "2026-07-01",
+      "settlementPrice": 24398.7,
+      "grossPnL": -1150.5,
+      "totalCosts": 279.24,
+      "slippage": 84.5,
+      "netPnL": -1429.74
+    },
+    {
+      "id": "NIFTY-2026-07-14",
+      "entryDate": "2026-07-08",
+      "settlementPrice": 24052.05,
+      "grossPnL": 6500,
+      "totalCosts": 626.29,
+      "slippage": 409.5,
+      "netPnL": 5873.71
+    },
+    {
+      "id": "NIFTY-2026-07-21",
+      "entryDate": "2026-07-15",
+      "settlementPrice": 24187.7,
+      "grossPnL": 1774.5,
+      "totalCosts": 275.55,
+      "slippage": 81.25,
+      "netPnL": 1498.95
+    },
+    {
+      "id": "NIFTY-2026-07-28",
+      "entryDate": "2026-07-22",
+      "settlementPrice": 23985.35,
+      "grossPnL": 2528.5,
+      "totalCosts": 314.3,
+      "slippage": 117,
+      "netPnL": 2214.2
+    },
+    {
+      "id": "NIFTY-2026-08-04",
+      "entryDate": "2026-07-29",
+      "settlementPrice": 24614.9,
+      "grossPnL": -5489.25,
+      "totalCosts": 269.06,
+      "slippage": 74.75,
+      "netPnL": -5758.31
+    },
+    {
+      "id": "NIFTY-2026-08-11",
+      "entryDate": "2026-08-05",
+      "settlementPrice": 24471.7,
+      "grossPnL": 1137.5,
+      "totalCosts": 251.1,
+      "slippage": 58.5,
+      "netPnL": 886.4
+    },
+    {
+      "id": "NIFTY-2026-08-18",
+      "entryDate": "2026-08-12",
+      "settlementPrice": 24154.9,
+      "grossPnL": 715,
+      "totalCosts": 230.13,
+      "slippage": 39,
+      "netPnL": 484.87
+    },
+    {
+      "id": "NIFTY-2026-08-25",
+      "entryDate": "2026-08-19",
+      "settlementPrice": 24334.55,
+      "grossPnL": 744.25,
+      "totalCosts": 237.04,
+      "slippage": 45.5,
+      "netPnL": 507.21
+    },
+    {
+      "id": "NIFTY-2026-09-01",
+      "entryDate": "2026-08-26",
+      "settlementPrice": 24055.8,
+      "grossPnL": 432.25,
+      "totalCosts": 223.02,
+      "slippage": 32.5,
+      "netPnL": 209.23
+    },
+    {
+      "id": "NIFTY-2026-09-08",
+      "entryDate": "2026-09-02",
+      "settlementPrice": 23635.1,
+      "grossPnL": 1209,
+      "totalCosts": 257.94,
+      "slippage": 65,
+      "netPnL": 951.06
+    },
+    {
+      "id": "NIFTY-2026-09-15",
+      "entryDate": "2026-09-09",
+      "settlementPrice": 23118.6,
+      "grossPnL": -848.25,
+      "totalCosts": 261.52,
+      "slippage": 68.25,
+      "netPnL": -1109.77
+    },
+    {
+      "id": "NIFTY-2026-09-22",
+      "entryDate": "2026-09-16",
+      "settlementPrice": 23329,
+      "grossPnL": 2161.25,
+      "totalCosts": 300.05,
+      "slippage": 104,
+      "netPnL": 1861.2
+    },
+    {
+      "id": "NIFTY-2026-09-29",
+      "entryDate": "2026-09-23",
+      "settlementPrice": 22716.2,
+      "grossPnL": -7988.5,
+      "totalCosts": 233.72,
+      "slippage": 42.25,
+      "netPnL": -8222.22
+    }
+  ]
+}

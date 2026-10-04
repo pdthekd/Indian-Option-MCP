@@ -80,7 +80,7 @@ export function renderMarkdown(rep: BacktestReport): string {
   const out: string[] = [];
   out.push(`# Backtest: ${r.strategyId} v${r.strategyVersion}`);
   out.push('');
-  out.push(`Data: ${r.from} → ${r.to} (${r.tradeDatesUsed} trading days). Strategy fingerprint \`${r.strategyFingerprint.slice(0, 16)}\`. Spread model ${r.spreadModel}.`);
+  out.push(`Data: ${r.from} → ${r.to} (${r.tradeDatesUsed} trading days). Strategy fingerprint \`${r.strategyFingerprint.slice(0, 16)}\`. Spread model ${r.spreadModel}. Brokerage plan ${r.brokeragePlanId}.`);
   out.push(`Split: development = entries before ${rep.splitDate}; out-of-sample = from ${rep.splitDate}. Parameters were fixed before running; nothing was tuned.`);
   out.push('');
   out.push(`**Overall verdict: ${rep.all.verdict}.** ${rep.all.verdictReason}`);

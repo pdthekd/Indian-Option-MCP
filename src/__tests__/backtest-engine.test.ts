@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import type { BhavRecord } from '../history/bhavcopy.js';
 import { finalSettlementPrice } from '../history/bhavcopy.js';
-import { runEodBacktest, EOD_PESSIMISTIC_V1, type EodStrategy, type EveningContext } from '../backtest/eod-engine.js';
+import { runEodBacktest, missingTradingDays, EOD_PESSIMISTIC_V1, type EodStrategy, type EveningContext } from '../backtest/eod-engine.js';
 import { buildReport, renderMarkdown, midpoint } from '../backtest/report.js';
 import { createRefIronCondor, REF_IRON_CONDOR_SPEC } from '../strategy/reference/nifty-weekly-iron-condor.js';
 
@@ -53,7 +53,7 @@ describe('final settlement price', () => {
 });
 
 describe('reference iron condor on synthetic data (hand-computed)', () => {
-  const run = () => runEodBacktest({ strategy: createRefIronCondor(), tradeDates: DATES, load, from: DATES[0], to: DATES[DATES.length - 1] });
+  const run = () => runEodBacktest({ strategy: createRefIronCondor(), tradeDates: DATES, load, from: DATES[0], to: DATES[DATES.length - 1], requireContinuousData: false });
   const res = run();
 
   it('signals on the expiry-day evening and fills at the NEXT day close with the spread against it', () => {
@@ -76,7 +76,9 @@ describe('reference iron condor on synthetic data (hand-computed)', () => {
     // Spread paid: (0.10 + 0.25 + 0.20 + 0.10) × 65 = 42.25
     expect(t.pnl.slippage).toBe(42.25);
     expect(t.pnl.netPnL).toBeLessThan(t.pnl.grossPnL - t.pnl.slippage); // charges are positive
-    expect(t.pnl.brokerage).toBe(4 * 20 + 4 * 20); // 4 entry orders + settlement brokerage on 4 legs
+    // 4 entry orders + settlement brokerage only on the ITM leg (short 25500 CE assigned). Changed from 4×20 + 4×20
+    // when brokerage plan r3 corrected OTM-expiry brokerage to ₹0 (Zerodha support article, 2026-10-04).
+    expect(t.pnl.brokerage).toBe(4 * 20 + 20);
     expect(t.pnl.classification).toBe('NET_LOSS');
   });
 
@@ -101,21 +103,21 @@ describe('no look-ahead and skip handling', () => {
       id: 'spy', version: '0.0.1', fingerprint: 'x', symbols: ['NIFTY'],
       onEvening: (ctx: EveningContext) => { seen.push({ date: ctx.date, rowDates: [...new Set(ctx.rows.map((r) => r.tradeDate))] }); return null; },
     };
-    runEodBacktest({ strategy: spy, tradeDates: DATES, load, from: DATES[0], to: DATES[DATES.length - 1] });
+    runEodBacktest({ strategy: spy, tradeDates: DATES, load, from: DATES[0], to: DATES[DATES.length - 1], requireContinuousData: false });
     expect(seen.map((s) => s.date)).toEqual(DATES);
     for (const s of seen) expect(s.rowDates).toEqual([s.date]);
   });
 
   it('skips (and records) a trade whose leg did not trade on the fill day', () => {
     const data = { ...DATA, [D2]: DATA[D2].map((r) => (r.strike === 25750 && r.optionType === 'CE' ? { ...r, volumeContracts: 0 } : r)) };
-    const res = runEodBacktest({ strategy: createRefIronCondor(), tradeDates: DATES, load: (d) => data[d] ?? [], from: DATES[0], to: DATES[DATES.length - 1] });
+    const res = runEodBacktest({ strategy: createRefIronCondor(), tradeDates: DATES, load: (d) => data[d] ?? [], from: DATES[0], to: DATES[DATES.length - 1], requireContinuousData: false });
     expect(res.trades).toHaveLength(0);
     expect(res.skipped[0].reason).toMatch(/25750 untraded/);
   });
 
   it('skips when the next trading day is the expiry', () => {
     const dates = [D1, E];
-    const res = runEodBacktest({ strategy: createRefIronCondor(), tradeDates: dates, load, from: D1, to: E });
+    const res = runEodBacktest({ strategy: createRefIronCondor(), tradeDates: dates, load, from: D1, to: E, requireContinuousData: false });
     expect(res.trades).toHaveLength(0);
     expect(res.skipped[0].reason).toMatch(/on\/after expiry/);
   });
@@ -127,8 +129,26 @@ describe('no look-ahead and skip handling', () => {
       '2024-07-12': DATA[D2].map((r) => shift(r, '2024-07-12', '2024-07-18')),
       '2024-07-18': DATA[E].map((r) => ({ ...r, tradeDate: '2024-07-18', expiry: '2024-07-18' })),
     };
-    expect(() => runEodBacktest({ strategy: createRefIronCondor(), tradeDates: Object.keys(old), load: (d) => old[d], from: '2024-07-11', to: '2024-07-18' }))
+    expect(() => runEodBacktest({ strategy: createRefIronCondor(), tradeDates: Object.keys(old), load: (d) => old[d], from: '2024-07-11', to: '2024-07-18', requireContinuousData: false }))
       .toThrow(/No charge schedule|lot-size|Refusing/);
+  });
+});
+
+describe('fail-closed data checks', () => {
+  it('refuses to run over a gap in the data (expected trading day missing)', () => {
+    expect(() => runEodBacktest({ strategy: createRefIronCondor(), tradeDates: DATES, load, from: DATES[0], to: DATES[DATES.length - 1] }))
+      .toThrow(/Data gap: no bhavcopy for expected trading day\(s\) 2026-09-25/);
+  });
+  it('refuses to leave a position unsettled when its expiry-day data is missing', () => {
+    const dates = [D1, D2, D3, '2026-09-30'];
+    const data: Record<string, BhavRecord[]> = { ...DATA, '2026-09-30': chainFor('2026-09-30', '2026-10-06', p) };
+    expect(() => runEodBacktest({ strategy: createRefIronCondor(), tradeDates: dates, load: (d) => data[d] ?? [], from: D1, to: '2026-09-30', requireContinuousData: false }))
+      .toThrow(/was not settled/);
+  });
+  it('missingTradingDays respects official holidays and weekends', () => {
+    const r = missingTradingDays(['2026-10-01', '2026-10-05'], '2026-10-01', '2026-10-05'); // 2 Oct holiday, 3-4 weekend
+    expect(r.missing).toEqual([]);
+    expect(missingTradingDays(['2026-10-01'], '2026-10-01', '2026-10-05').missing).toEqual(['2026-10-05']);
   });
 });
 

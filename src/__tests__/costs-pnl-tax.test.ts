@@ -135,10 +135,12 @@ describe('exercise and slippage', () => {
     expect(c.stt).toBe(0);
     expect(c.brokerage).toBe(20);
   });
-  it('OTM expiry: brokerage per plan, no STT', () => {
+  it('OTM expiry: no brokerage and no STT (plan r3, per Zerodha support article)', () => {
     const c = calculateExpirySettlementCosts({ intrinsicPerUnit: 0, quantity: 75, tradeDate: D, underlying: 'INDEX' });
     expect(c.stt).toBe(0);
-    expect(c.brokerage).toBe(20);
+    // Was 20 under superseded plan r2, which wrongly charged OTM-expiry brokerage.
+    expect(c.brokerage).toBe(0);
+    expect(c.totalCharges).toBe(0);
     expect(c.assumptions[0]).toMatch(/EXPIRED_OTM/);
   });
   it('stock option settlement is refused (physical delivery not modelled)', () => {
@@ -234,14 +236,15 @@ describe('PnL engine — net classification', () => {
     expect(p.stt).toBeCloseTo(250 * 75 * 0.0015, 2);
     expect(p.brokerage).toBe(25 + 20); // entry (actual) + settlement brokerage
   });
-  it('short option expiring worthless still pays settlement brokerage', () => {
+  it('short option expiring worthless pays no settlement brokerage', () => {
     const p = computeTradePnL({
       tradeId: 't5b', instrument: 'OPTION',
       executions: [{ orderId: 'a', side: 'SELL', quantity: 75, price: 40, tradeDate: D, actualCharges: fixed(10) }],
       settlement: { settlementPrice: 23900, strike: 24000, optionType: 'CE', expiryDate: '2026-10-06', underlying: 'INDEX' },
     });
     expect(p.grossPnL).toBe(3000);
-    expect(p.totalCosts).toBeCloseTo(10 + 20 + 3.6, 2);
+    // OTM short expiring worthless: only the entry charges remain (plan r3).
+    expect(p.totalCosts).toBeCloseTo(10, 2);
   });
   it('refuses an open position without settlement', () => {
     expect(() => computeTradePnL({

@@ -66,7 +66,7 @@ export function brokeragePlanFor(
   return p;
 }
 
-export const DEFAULT_BROKERAGE_PLAN = 'ZERODHA-FO-r2';
+export const DEFAULT_BROKERAGE_PLAN = 'ZERODHA-FO-r3';
 
 /**
  * Adverse price movement per unit implied by a slippage model.
