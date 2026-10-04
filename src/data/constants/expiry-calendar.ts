@@ -124,7 +124,7 @@ function monthlyDow(symbol: string): number {
 /** Human-readable statement of the rules used by this module. */
 export const EXPIRY_RULES_NOTE =
   'Computed from rules in force since 2025-09-01 (NSE: NIFTY weekly Tuesday, monthly = last Tuesday; ' +
-  'BANKNIFTY/FINNIFTY/MIDCPNIFTY monthly only; BSE SENSEX weekly Thursday) with the NSE holiday list (2026: official circular NSE/CMTR/71775; 2025: unverified; other years: none). ' +
+  'BANKNIFTY/FINNIFTY/MIDCPNIFTY monthly only; BSE SENSEX weekly Thursday) with the official NSE F&O holiday lists (2025: NSE/FAOP/65588; 2026: NSE/FAOP/71777; other years: none). ' +
   'Not authoritative — use the exchange/broker expiry list.';
 
 // ---------------------------------------------------------------------------

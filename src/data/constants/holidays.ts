@@ -23,34 +23,44 @@ export interface HolidayYear {
 const YEARS: Readonly<Record<number, HolidayYear>> = Object.freeze({
   2025: {
     year: 2025,
-    verification: 'UNVERIFIED',
+    verification: 'OFFICIAL',
     source:
-      'Entered from the assistant\'s recollection of the NSE 2025 list (NOT the original code\'s list, which wrongly ' +
-      'included 2025-05-12, a day the account holder traded per contract notes). Not checked against the NSE 2025 circular.',
+      'NSE circular NSE/FAOP/65588 (Circular Ref. No. 161/2024), 13 Dec 2024, Futures & Options segment, ' +
+      '"Trading holidays for the calendar year 2025", https://nsearchives.nseindia.com/content/circulars/FAOP65588.pdf — read 2026-10-04',
     holidays: {
-      '2025-02-26': 'Maha Shivaratri',
+      '2025-02-26': 'Mahashivratri',
       '2025-03-14': 'Holi',
-      '2025-03-31': 'Id-Ul-Fitr',
+      '2025-03-31': 'Id-Ul-Fitr (Ramadan Eid)',
       '2025-04-10': 'Shri Mahavir Jayanti',
-      '2025-04-14': 'Dr. Ambedkar Jayanti',
+      '2025-04-14': 'Dr. Baba Saheb Ambedkar Jayanti',
       '2025-04-18': 'Good Friday',
       '2025-05-01': 'Maharashtra Day',
       '2025-08-15': 'Independence Day',
       '2025-08-27': 'Ganesh Chaturthi',
-      '2025-10-02': 'Mahatma Gandhi Jayanti',
-      '2025-10-21': 'Diwali Laxmi Pujan',
-      '2025-10-22': 'Diwali Balipratipada',
-      '2025-11-05': 'Prakash Gurpurb',
+      '2025-10-02': 'Mahatma Gandhi Jayanti/Dussehra',
+      '2025-10-21': 'Diwali Laxmi Pujan (Muhurat trading session held)',
+      '2025-10-22': 'Diwali-Balipratipada',
+      '2025-11-05': 'Prakash Gurpurb Sri Guru Nanak Dev',
       '2025-12-25': 'Christmas',
     },
-    notes: ['Verify against the NSE 2025 trading-holiday circular before using for back-tests.'],
+    weekendHolidays: {
+      '2025-01-26': 'Republic Day',
+      '2025-04-06': 'Shri Ram Navami',
+      '2025-06-07': 'Bakri Id',
+      '2025-07-06': 'Muharram',
+    },
+    notes: [
+      'Matches the list previously entered from recollection exactly.',
+      'Muhurat trading was conducted on 2025-10-21 (a holiday); that special session is not a regular trading day.',
+    ],
   },
   2026: {
     year: 2026,
     verification: 'OFFICIAL',
     source:
-      'NSE circular NSE/CMTR/71775 (Circular Ref. No. 172/2025), 12 Dec 2025, "Trading holidays for the calendar year 2026", ' +
-      'https://nsearchives.nseindia.com/content/circulars/CMTR71775.pdf — read 2026-10-03',
+      'NSE circular NSE/FAOP/71777 (Circular Ref. No. 212/2025), 12 Dec 2025, Futures & Options segment, ' +
+      '"Trading holidays for the calendar year 2026", https://nsearchives.nseindia.com/content/circulars/FAOP71777.pdf — read 2026-10-04 ' +
+      '(identical to the Capital Market circular NSE/CMTR/71775)',
     holidays: {
       '2026-01-26': 'Republic Day',
       '2026-03-03': 'Holi',
@@ -75,9 +85,8 @@ const YEARS: Readonly<Record<number, HolidayYear>> = Object.freeze({
       '2026-11-08': 'Diwali Laxmi Pujan (Muhurat trading session; timings notified separately)',
     },
     notes: [
-      'Circular is for the Capital Market segment. Equity-derivatives trading is assumed to follow the same list ' +
-        '(no separate F&O trading-holiday circular found). NSE commodity circular NSE/COM/71784 closes its morning ' +
-        'session on exactly these 15 weekdays.',
+      'F&O circular NSE/FAOP/71777, Capital Market circular NSE/CMTR/71775 and the commodity circular NSE/COM/71784 ' +
+        '(morning session) all list these same 15 weekdays.',
       'Settlement holidays (NSE Clearing NCL/CMPT/71923) differ and are not modelled here.',
       'Muhurat trading on Sunday 2026-11-08 is a special session and is not represented as a trading day.',
     ],

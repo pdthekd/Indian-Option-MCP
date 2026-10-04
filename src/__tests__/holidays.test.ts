@@ -5,14 +5,14 @@ import { getNextExpiry, isTradingDay } from '../data/constants/expiry-calendar.j
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const ymd = (x: Date) => x.toISOString().slice(0, 10);
 
-describe('NSE 2026 trading holidays (official circular NSE/CMTR/71775)', () => {
+describe('NSE 2026 trading holidays (official F&O circular NSE/FAOP/71777)', () => {
   it('has exactly the 15 weekday holidays from the circular', () => {
     expect(nseHolidaysForYear(2026)).toEqual([
       '2026-01-26', '2026-03-03', '2026-03-26', '2026-03-31', '2026-04-03', '2026-04-14', '2026-05-01',
       '2026-05-28', '2026-06-26', '2026-09-14', '2026-10-02', '2026-10-20', '2026-11-10', '2026-11-24', '2026-12-25',
     ]);
     expect(holidayDataStatus(2026).verification).toBe('OFFICIAL');
-    expect(holidayDataStatus(2026).source).toContain('NSE/CMTR/71775');
+    expect(holidayDataStatus(2026).source).toContain('NSE/FAOP/71777');
   });
   it('no longer contains dates from the old, wrong lists', () => {
     for (const wrong of ['2026-03-10', '2026-03-17', '2026-04-02', '2026-05-25', '2026-11-09', '2026-11-27', '2026-02-17', '2026-08-25'])
@@ -20,10 +20,17 @@ describe('NSE 2026 trading holidays (official circular NSE/CMTR/71775)', () => {
   });
   it('reports unknown years honestly', () => {
     expect(holidayDataStatus(2027).verification).toBe('UNKNOWN');
-    expect(holidayDataStatus(2025).verification).toBe('UNVERIFIED');
+    expect(holidayDataStatus(2025).verification).toBe('OFFICIAL');
   });
   it('2025-05-12 is a trading day (account holder traded that day)', () => {
     expect(isTradingDay(d('2025-05-12'))).toBe(true);
+  });
+  it('2025 list matches the official F&O circular NSE/FAOP/65588', () => {
+    expect(nseHolidaysForYear(2025)).toEqual([
+      '2025-02-26', '2025-03-14', '2025-03-31', '2025-04-10', '2025-04-14', '2025-04-18', '2025-05-01',
+      '2025-08-15', '2025-08-27', '2025-10-02', '2025-10-21', '2025-10-22', '2025-11-05', '2025-12-25',
+    ]);
+    expect(holidayDataStatus(2025).source).toContain('NSE/FAOP/65588');
   });
   it('names holidays', () => {
     expect(nseHolidayName('2026-10-20')).toBe('Dussehra');
