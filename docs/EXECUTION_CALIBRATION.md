@@ -78,6 +78,12 @@ node dist/calibration-cli.mjs     # writes ~/.options-hq/data/calibration/calibr
 This is measurement only. Any change to the fill model still goes through the pre-registered rule
 above.
 
+**Automated (2026-10-04):** a Windows scheduled task, *Options HQ Evening Calibration*, runs on
+weekdays at 19:30 IST. It runs `~/.options-hq/run-evening.cmd` (outside the repository), which calls
+`bhavcopy-cli --last 7` and then `calibration-cli`. Days already stored are reused, so a bhavcopy NSE
+had not yet published at 19:30 is fetched on the next run. Output goes to
+`~/.options-hq/data/calibration/` (report and `evening.log`). It is read-only and places no orders.
+
 ## Still not addressed by calibration
 
 - Quotes are top-of-book snapshots polled about once a minute (NSE refresh rate not yet known), not

@@ -4,6 +4,7 @@
  * directory (outside the repo) and cross-check lot sizes.
  *
  *   node dist/bhavcopy-cli.mjs --from 2025-05-01 --to 2025-05-31 [--symbols NIFTY,BANKNIFTY]
+ *   node dist/bhavcopy-cli.mjs --last 7     # the last 7 calendar days up to today (IST); stored days are reused
  */
 
 import { fetchBhavcopy, loadBhavcopy, checkLotSizes, DEFAULT_SYMBOLS, UDIFF_START } from '../history/bhavcopy.js';
@@ -27,11 +28,23 @@ function* dates(from: string, to: string): Generator<string> {
   }
 }
 
+/** Today's date in IST (the exchange's calendar), independent of the machine's time zone. */
+function istToday(): string {
+  return new Date(Date.now() + 5.5 * 3_600_000).toISOString().slice(0, 10);
+}
+
 async function main(): Promise<void> {
-  const from = arg('from');
-  const to = arg('to') ?? from;
+  const last = arg('last');
+  if (last !== undefined && !(Number.isInteger(Number(last)) && Number(last) >= 1 && Number(last) <= 31)) {
+    console.error('--last must be 1–31 days');
+    process.exit(2);
+  }
+  const today = istToday();
+  const back = (n: number) => { const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - (n - 1)); return d.toISOString().slice(0, 10); };
+  const from = last !== undefined ? back(Number(last)) : arg('from');
+  const to = last !== undefined ? today : arg('to') ?? from;
   if (!from || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !to || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) {
-    console.error('Usage: --from YYYY-MM-DD [--to YYYY-MM-DD] [--symbols NIFTY,BANKNIFTY]');
+    console.error('Usage: --from YYYY-MM-DD [--to YYYY-MM-DD] | --last N  [--symbols NIFTY,BANKNIFTY]');
     process.exit(2);
   }
   if (from < UDIFF_START) {
