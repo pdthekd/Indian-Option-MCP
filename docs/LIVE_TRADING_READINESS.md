@@ -21,7 +21,7 @@ There are multiple unresolved critical blockers. `TRADING_MODE=live` is hard-dis
 | Tax model | PASS WITH CONDITIONS | Separate annual estimate layer, labelled; rules UNVERIFIED; set-off not modelled | No (estimate only) |
 | Paper trading | PASS WITH CONDITIONS | PaperBroker with bid/ask fills, partials, costs, journal, NET classification — unit-tested only; never run on recorded market data | **Yes** |
 | Sandbox | NOT TESTED | No sandbox adapter; BROKER_EVALUATION.md shows neither Kite nor Upstox sandbox covers options end-to-end | **Yes** |
-| Backtesting | NOT TESTED | EOD reference data (NSE bhavcopy) ingester and forward bid/ask recorder exist; no intraday history source or backtest harness yet | **Yes** |
+| Backtesting | PASS WITH CONDITIONS | EOD engine built and tested (no look-ahead, next-day fills, pessimistic spread, exact lot sizes, exchange settlement); reference strategy run over 2024-10 → 2026-10: 104 trades, NET −₹69,976 (gross also negative). End-of-day only; spread model uncalibrated; no intraday data | **Yes** |
 | Out-of-sample | NOT TESTED | No backtests exist | **Yes** |
 | Shadow trading | NOT TESTED | Not implemented | **Yes** |
 | Broker integration | FAIL | Only a read-only Kite data provider with known defects (F17); no order adapter; no margin API | **Yes** |
@@ -32,7 +32,7 @@ There are multiple unresolved critical blockers. `TRADING_MODE=live` is hard-dis
 
 ## Strategy profitability
 
-**UNKNOWN.** No strategy has been backtested, paper-traded on market data, or shadow-traded.
+**UNKNOWN.** No candidate strategy has been backtested, paper-traded on market data, or shadow-traded. The only backtest so far (a plain reference iron condor used to test the engine) showed a negative net result and is not a candidate.
 Nothing in this repository is evidence of positive NET expectancy.
 
 ## Minimum path to reconsider (in order)

@@ -1,28 +1,76 @@
 # Backtesting (Phases 11, 12, 15, 16)
 
-**Status: no backtest has been run. There is no historical option data source.** The NSE
-provider only returns the current chain; computations on it are not backtests.
+## Status
 
-## What exists
+An **end-of-day (EOD) backtest engine** exists and has run one deliberately plain **reference
+strategy** over two years of real NSE data. No intraday backtesting is possible yet (no
+intraday option history source). **No strategy has been validated.**
 
-| Piece | File | Status |
-|---|---|---|
-| `HistoricalMarketDataProvider` interface (point-in-time bid/ask/LTP/volume/OI/IV/expiry/lot size) | `src/backtest/historical-data.ts` | interface only |
-| `PointInTimeGuard` — throws `LookAheadError` on any record time-stamped after the decision time and on settlement access before expiry | same | tested |
-| NET metrics: expectancy ± SE, win rate, avg win/loss, profit factor, drawdown, losing streak, per-trade Sharpe/Sortino, costs vs gross | `src/analytics/performance.ts` | tested |
-| Verdicts: `UNKNOWN` (< 100 trades or not significant), `NEGATIVE NET EXPECTANCY`, `PROFITABLE BEFORE COSTS BUT NOT VALIDATED AFTER COSTS`, `POSITIVE NET EXPECTANCY IN SAMPLE — NOT VALIDATED OUT-OF-SAMPLE` | same | tested |
-| Cost sensitivity BASE / WORSE / SEVERE; break-even gross per trade, win rate, cost per trade, extra slippage | `src/analytics/cost-sensitivity.ts` | tested |
+```bash
+npm run build
+node dist/bhavcopy-cli.mjs --from 2024-10-01 --to <date>   # if newer data is needed
+node dist/backtest-cli.mjs                                 # writes ~/.options-hq/data/backtests/*.md|json
+```
 
-## Required before any backtest result is trusted
+## What the engine does (src/backtest/eod-engine.ts)
 
-1. A licensed point-in-time options dataset (bid/ask, not just LTP; OI; lot sizes over time;
-   expiry calendars over time; settlement prices). Candidates: broker historical APIs
-   (limited for expired options), exchange data products, Dhan expired-options API — evaluate
-   licensing and completeness.
-2. Simulator that replays snapshots through the PaperBroker (same fill rules, same cost engine).
-3. Charge schedules covering the full test period (currently only from 2024-10-01).
-4. Regime coverage: normal, high-volatility, gap days, expiry days, low liquidity, fast moves,
-   large drawdowns; pre/post 2025-09 expiry-day change; lot-size changes.
-5. Walk-forward with out-of-sample periods fixed **before** looking at results; parameter
-   perturbation; Monte Carlo resampling of trade sequences; losing-streak stress; the three
-   cost scenarios. A strategy is not promoted on in-sample profit.
+| Rule | Why |
+|---|---|
+| On day D the strategy sees only D's bhavcopy (published after the close) | No look-ahead (tested) |
+| Orders fill at the **next** trading day's close, never the close that triggered them | You cannot trade at a close you have not seen yet |
+| Every fill pays a half-spread against the order: `EOD_PESSIMISTIC_V1` = max(₹0.10, 2% of close) | No historical bid/ask exists; to be calibrated from the quote recorder |
+| A leg not listed, untraded, or with no close on the fill day ⇒ whole trade skipped and recorded | No phantom fills |
+| Exact per-contract lot size from the fill day's bhavcopy | Lot sizes change by trade date |
+| Entry costs from the TransactionCostEngine; expiry exercise STT and settlement brokerage via the PnLEngine | One cost source of truth |
+| Settlement at the exchange final settlement price from the expiry-day bhavcopy (`SttlmPric` of expiring options) | Works for weekly expiries |
+| One position at a time, fixed 1 lot, no compounding | No sizing effects hiding the edge |
+| Dates without a charge schedule (before 2024-10-01) throw | Fail closed |
+
+Reports (`src/backtest/report.ts`): GROSS / COSTS / NET; net expectancy ± standard error, win rate,
+average net win/loss, profit factor, drawdown, losing streak; a **development / out-of-sample** split
+at the date-range midpoint (fixed by the range, not by results); BASE / WORSE / SEVERE cost sensitivity
+and break-evens. Verdicts: `UNKNOWN` below 100 trades or when not distinguishable from zero on the
+positive side; `NEGATIVE NET EXPECTANCY` when the mean net result is ≤ 0 (a conservative point-estimate
+rule, **not** a significance claim).
+
+## First run: reference strategy (2026-10-04)
+
+`ref_nifty_weekly_iron_condor` v1.0.0 (src/strategy/reference): on each NIFTY weekly expiry evening,
+sell the next weekly iron condor — shorts 2% OTM, wings 1% further, 1 lot, held to expiry. Parameters
+were fixed before the run and **must not be tuned to this result**. It exists to exercise the engine,
+not as a recommendation.
+
+Data: 2024-10-01 → 2026-10-01, 495 trading days, 104 trades, 0 skipped.
+
+| | All | Development (before 2025-10-01) | Out-of-sample |
+|---|---:|---:|---:|
+| Trades | 104 | 52 | 52 |
+| Gross P&L | −₹34,259.75 | −₹16,325.00 | −₹17,934.75 |
+| Costs (charges + spread) | ₹35,716.48 | ₹16,717.24 | ₹18,999.24 |
+| **Net P&L** | **−₹69,976.23** | **−₹33,042.24** | **−₹36,933.99** |
+| Net expectancy / trade | −₹672.85 ± ₹468.43 | −₹635.43 ± ₹742.73 | −₹710.27 ± ₹578.44 |
+| Net win rate | 73.1% | 76.9% | 69.2% |
+| Avg net win / loss | ₹1,598.55 / −₹6,838.08 | | |
+| Max drawdown (net) | ₹76,006.42 | | |
+
+Reading it plainly:
+
+- The strategy **lost money before costs** (gross −₹329 per trade) and costs (₹343 per trade) doubled the loss.
+- A **73% win rate with a net loss**: many small wins, a few large losses. A high win rate is not an edge.
+- The loss is not statistically significant (mean −₹673, standard error ₹468); the honest summary is
+  "no evidence of a positive edge; point estimate negative", consistently in both halves.
+- It fails in every cost scenario (WORSE −₹95,164; SEVERE −₹1,20,352). Break-even would need an 81% win
+  rate at the observed win/loss sizes.
+- One trade (expiry 2025-07-17) was checked by hand against the raw bhavcopy: strikes, closes, fills,
+  lot size, settlement and gross P&L all match.
+- About ₹94 per trade of the costs is the assumed settlement brokerage on options that expire worthless
+  (unverified, conservative). Removing it would not change the conclusion, since gross is negative.
+
+## Still required before any strategy result is trusted
+
+1. Calibrate the spread model from the quote recorder's real bid/ask (weeks of data).
+2. Intraday option data for anything not decided once a day.
+3. Verify post-2026-04-01 charges and expiry brokerage on a real contract note.
+4. Margin, intraday drawdown and gap risk within the holding period (not modelled).
+5. Walk-forward over more regimes, parameter-perturbation and Monte Carlo trade-sequence tests
+   (Phase 16) once a candidate strategy exists.

@@ -321,16 +321,24 @@ export class BhavcopyHistoricalProvider implements HistoricalMarketDataProvider 
     return { underlying, underlyingPrice: und, underlyingTimestamp: known, expiry, quotes, lotSize: lot, asOf: known };
   }
 
-  /**
-   * Settlement price of the index FUTURE expiring that day, if one exists
-   * (monthly expiries). Weekly-only expiry days have no future row; the
-   * method then throws rather than approximating.
-   */
+  /** Final settlement price of the index on an expiry day (see finalSettlementPrice). */
   async settlementPrice(underlying: string, expiry: string): Promise<number> {
-    const f = this.rows(expiry).find((r) => r.symbol === underlying && r.instrumentType === 'IDX_FUT' && r.expiry === expiry);
-    if (!f || f.settlementPrice === null) {
-      throw new Error(`No ${underlying} future expiring ${expiry} in that day's bhavcopy; final settlement price not derivable from bhavcopy alone.`);
-    }
-    return f.settlementPrice;
+    return finalSettlementPrice(this.rows(expiry), underlying, expiry);
   }
+}
+
+/**
+ * Final settlement price for index options expiring on `expiry`, read from
+ * that day's bhavcopy. On expiry day NSE reports the underlying's final
+ * settlement price in `SttlmPric` of every expiring option row (verified on
+ * 2025-05-15 and 2026-09-29: equal to `UndrlygPric`). Works for weekly
+ * expiries, which have no expiring future. Throws if rows disagree or are
+ * missing — never approximates.
+ */
+export function finalSettlementPrice(expiryDayRows: BhavRecord[], underlying: string, expiry: string): number {
+  const rows = expiryDayRows.filter((r) => r.tradeDate === expiry && r.symbol === underlying && r.expiry === expiry && r.optionType);
+  const values = new Set(rows.map((r) => r.settlementPrice).filter((v): v is number => v !== null));
+  if (rows.length === 0 || values.size === 0) throw new Error(`No ${underlying} options expiring ${expiry} in that day's bhavcopy`);
+  if (values.size !== 1) throw new Error(`${underlying} ${expiry}: expiring option rows disagree on settlement price (${[...values].join(', ')})`);
+  return [...values][0];
 }
