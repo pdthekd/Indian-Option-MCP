@@ -32,8 +32,18 @@ export const UDIFF_START = '2024-07-08';
 export type InstrumentType = 'IDX_OPT' | 'IDX_FUT' | 'STK_OPT' | 'STK_FUT';
 const TYPE_MAP: Record<string, InstrumentType> = { IDO: 'IDX_OPT', IDF: 'IDX_FUT', STO: 'STK_OPT', STF: 'STK_FUT' };
 
+/**
+ * Version of the normalized JSONL format. Bump whenever parseBhavcopyCsv output changes; the data
+ * version of a backtest records it, because the same raw files then normalize to different bytes.
+ *  1: initial format
+ *  2: adds instrumentId (NSE FinInstrmId; stable when NSE relabels a contract's expiry)
+ */
+export const NORMALIZER_VERSION = 2;
+
 export interface BhavRecord {
   tradeDate: string;
+  /** NSE FinInstrmId: the contract's identity. Unlike `expiry`, it does not change if NSE relabels the expiry. */
+  instrumentId?: string | null;
   symbol: string;
   instrumentType: InstrumentType;
   expiry: string;
@@ -104,6 +114,7 @@ export function parseBhavcopyCsv(text: string): BhavRecord[] {
     const opt = g('OptnTp');
     out.push({
       tradeDate: g('TradDt') ?? '',
+      instrumentId: idx.FinInstrmId !== undefined ? (g('FinInstrmId') || null) : null,
       symbol: g('TckrSymb') ?? '',
       instrumentType: type,
       expiry: g('XpryDt') ?? '',
@@ -138,6 +149,9 @@ export interface ManifestEntry {
   keptRows?: number;
   fetchedAt: string;
   detail?: string;
+  /** 'cache' when the stored raw zip was re-normalized without a download. */
+  source?: 'cache' | 'network';
+  normalizerVersion?: number;
 }
 
 export interface FetchOptions {
@@ -174,7 +188,8 @@ export async function fetchBhavcopy(tradeDate: string, opts: FetchOptions = {}):
   const record = (e: ManifestEntry) => { appendFileSync(d.manifest, JSON.stringify(e) + '\n'); return e; };
 
   let buf: Buffer;
-  if (existsSync(rawPath)) {
+  const cached = existsSync(rawPath);
+  if (cached) {
     buf = readFileSync(rawPath);
   } else {
     const ctrl = new AbortController();
@@ -211,6 +226,7 @@ export async function fetchBhavcopy(tradeDate: string, opts: FetchOptions = {}):
     return record({
       tradeDate, status: 'OK', url, sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length,
       rows: rows.length, keptRows: kept.length, fetchedAt: now().toISOString(),
+      source: cached ? 'cache' : 'network', normalizerVersion: NORMALIZER_VERSION,
     });
   } catch (err) {
     return record({ tradeDate, status: 'ERROR', url, fetchedAt: now().toISOString(), detail: err instanceof Error ? err.message : String(err) });

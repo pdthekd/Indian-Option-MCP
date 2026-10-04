@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isNseTradingHoliday, holidayDataStatus, nseHolidaysForYear, nseHolidayName } from '../data/constants/holidays.js';
+import { isNseTradingHoliday, holidayDataStatus, nseHolidaysForYear, nseHolidayName, expectBhavcopy, isSpecialSession } from '../data/constants/holidays.js';
 import { getNextExpiry, isTradingDay } from '../data/constants/expiry-calendar.js';
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
@@ -53,5 +53,20 @@ describe('Tuesday holidays move NIFTY expiries to Monday', () => {
   });
   it('March monthly (last Tuesday 31 Mar is a holiday) → Monday 30 Mar', () => {
     expect(ymd(getNextExpiry('NIFTY', false, d('2026-03-01')))).toBe('2026-03-30');
+  });
+});
+
+describe('which dates should have a bhavcopy (download completeness)', () => {
+  it('regular weekdays yes; weekends and official holidays no', () => {
+    expect(expectBhavcopy('2026-10-01')).toBe(true);
+    expect(expectBhavcopy('2026-10-03')).toBe(false); // Saturday
+    expect(expectBhavcopy('2026-10-02')).toBe(false); // Gandhi Jayanti
+  });
+  it('Muhurat special sessions on holidays/weekends are downloaded (a clean checkout must get the same 495 days)', () => {
+    for (const s of ['2024-11-01', '2025-10-21', '2026-11-08']) {
+      expect(isSpecialSession(s)).toBe(true);
+      expect(expectBhavcopy(s)).toBe(true);
+    }
+    expect(isNseTradingHoliday('2025-10-21')).toBe(true); // still a holiday for regular trading
   });
 });

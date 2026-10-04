@@ -88,10 +88,20 @@ export interface EodStrategy {
   version: string;
   fingerprint: string;
   symbols: string[];
-  onEvening(ctx: EveningContext): Proposal | null;
+  /**
+   * A proposal, or null when there is nothing to consider today (routine), or `{ noTrade }` when the
+   * strategy's rule applied today but could not be met: recorded in the result, never silent.
+   */
+  onEvening(ctx: EveningContext): Proposal | NoTrade | null;
+}
+
+export interface NoTrade {
+  noTrade: string;
 }
 
 export interface FilledLeg extends LegProposal {
+  /** NSE FinInstrmId of the contract filled (null for data without it). */
+  instrumentId: string | null;
   close: number;
   fillPrice: number;
   lotSize: number;
@@ -129,6 +139,10 @@ export interface BacktestResult {
   tradeDatesUsed: number;
   trades: BacktestTrade[];
   skipped: SkippedSignal[];
+  /** Evenings where the strategy's rule applied but produced no proposal, with its reason. */
+  noTrade: Array<{ date: string; reason: string }>;
+  /** Held contracts whose expiry NSE relabelled while the position was open (followed by instrument id). */
+  expiryRelabels: Array<{ date: string; from: string; to: string }>;
   /** Positions still open at the end of the data (not counted). */
   openAtEnd: number;
 }
@@ -228,6 +242,8 @@ export function runEodBacktest(input: EngineInput): BacktestResult {
 
   const trades: BacktestTrade[] = [];
   const skipped: SkippedSignal[] = [];
+  const noTrade: Array<{ date: string; reason: string }> = [];
+  const expiryRelabels: Array<{ date: string; from: string; to: string }> = [];
   type Pending = { proposal: Proposal; signalDate: string };
   type Open = { proposal: Proposal; signalDate: string; entryDate: string; legs: FilledLeg[] };
   let open: Open | null = null;
@@ -258,14 +274,35 @@ export function runEodBacktest(input: EngineInput): BacktestResult {
           const h = spread.halfSpread(row.close);
           const fillPrice = l.side === 'BUY' ? toTick(row.close + h, 'up') : Math.max(TICK, toTick(row.close - h, 'down'));
           const lot = lotSizeFor(p.proposal.symbol, p.proposal.expiry, d, obs).lotSize;
-          legs.push({ ...l, close: row.close, fillPrice, lotSize: lot, quantity: l.lots * lot, settlementValuePerUnit: 0 });
+          legs.push({ ...l, instrumentId: row.instrumentId ?? null, close: row.close, fillPrice, lotSize: lot, quantity: l.lots * lot, settlementValuePerUnit: 0 });
         }
         if (fail) skipped.push({ signalDate: p.signalDate, reason: `Not filled: ${fail}` });
         else open = { proposal: p.proposal, signalDate: p.signalDate, entryDate: d, legs };
       }
     }
 
-    // 2. Settle an open position on its expiry day. Never let one silently survive past expiry.
+    // 2. Follow held contracts by instrument id: NSE can relabel a listed contract's expiry
+    //    (e.g. the 2025-08-01 Thursday→Tuesday switch). A held contract that vanishes before
+    //    its expiry is a data error: fail closed.
+    if (open && open.entryDate < d && d <= open.proposal.expiry && open.legs.every((l) => l.instrumentId)) {
+      const o: Open = open;
+      const byId = new Map(rows.filter((r) => r.instrumentId).map((r) => [r.instrumentId as string, r]));
+      const seen = o.legs.map((l) => byId.get(l.instrumentId as string));
+      const lost = o.legs.filter((_, k) => !seen[k]);
+      if (lost.length) {
+        throw new Error(`Held contract(s) ${lost.map((l) => `${l.type} ${l.strike} (id ${l.instrumentId})`).join(', ')} missing from ${d} bhavcopy before expiry ${o.proposal.expiry}`);
+      }
+      const expiries = new Set(seen.map((r) => r!.expiry));
+      if (expiries.size !== 1) throw new Error(`Held legs of ${o.proposal.expiry} report different expiries on ${d}: ${[...expiries].join(', ')}`);
+      const now = [...expiries][0];
+      if (now !== o.proposal.expiry) {
+        if (now < d) throw new Error(`Held contract relabelled to an expiry in the past (${now}) on ${d}`);
+        expiryRelabels.push({ date: d, from: o.proposal.expiry, to: now });
+        o.proposal = { ...o.proposal, expiry: now };
+      }
+    }
+
+    // 3. Settle an open position on its expiry day. Never let one silently survive past expiry.
     if (open && d > open.proposal.expiry) {
       throw new Error(`Position expiring ${open.proposal.expiry} was not settled: no data for its expiry day (next data ${d}).`);
     }
@@ -298,8 +335,10 @@ export function runEodBacktest(input: EngineInput): BacktestResult {
       });
     }
 
-    // 3. Evening: the strategy sees today's data only.
-    const proposal = strategy.onEvening({ date: d, rows, hasOpenPosition: open !== null });
+    // 4. Evening: the strategy sees today's data only.
+    const out = strategy.onEvening({ date: d, rows, hasOpenPosition: open !== null });
+    if (out && 'noTrade' in out) noTrade.push({ date: d, reason: out.noTrade });
+    const proposal = out && !('noTrade' in out) ? out : null;
     if (proposal) {
       if (open) skipped.push({ signalDate: d, reason: 'Position already open' });
       else if (i === dates.length - 1) skipped.push({ signalDate: d, reason: 'No later trade date in range to fill' });
@@ -318,6 +357,8 @@ export function runEodBacktest(input: EngineInput): BacktestResult {
     tradeDatesUsed: dates.length,
     trades,
     skipped,
+    noTrade,
+    expiryRelabels,
     openAtEnd: open ? 1 : 0,
   };
 }

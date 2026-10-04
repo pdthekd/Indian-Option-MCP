@@ -72,14 +72,27 @@ export function toGolden(label: string, result: BacktestResult, data: DataVersio
   };
 }
 
-/** Every difference between a fresh run and a golden file. Empty = exact reproduction. */
-export function compareGolden(expected: GoldenResult, actual: GoldenResult): string[] {
+/**
+ * Every difference between a fresh run and a golden file. Empty = exact reproduction.
+ * Raw data, strategy, models and every trade must match exactly. The normalized-data hash is compared
+ * only when both sides used the same normalizer version (a format change alters those bytes but not
+ * the raw data); `notes` says when it was not compared.
+ */
+export function compareGolden(expected: GoldenResult, actual: GoldenResult, notes: string[] = []): string[] {
   const diffs: string[] = [];
   const keys = ['strategyId', 'strategyVersion', 'strategyFingerprint', 'brokeragePlanId', 'spreadModel', 'from', 'to',
     'trades', 'skipped', 'grossTotal', 'costsTotal', 'netTotal'] as const;
   for (const k of keys) if (expected[k] !== actual[k]) diffs.push(`${k}: expected ${expected[k]}, got ${actual[k]}`);
-  for (const k of ['days', 'rawSha256', 'normalizedSha256'] as const) {
+  for (const k of ['days', 'rawSha256'] as const) {
     if (expected.data[k] !== actual.data[k]) diffs.push(`data.${k}: expected ${expected.data[k]}, got ${actual.data[k]}`);
+  }
+  const ev = expected.data.normalizerVersion ?? 1, av = actual.data.normalizerVersion ?? 1;
+  if (ev === av) {
+    if (expected.data.normalizedSha256 !== actual.data.normalizedSha256) {
+      diffs.push(`data.normalizedSha256: expected ${expected.data.normalizedSha256}, got ${actual.data.normalizedSha256}`);
+    }
+  } else {
+    notes.push(`normalized-data hash not compared: golden used normalizer v${ev}, this run v${av} (raw data hash compared exactly)`);
   }
   const byId = new Map(actual.perTrade.map((t) => [t.id, t]));
   for (const e of expected.perTrade) {

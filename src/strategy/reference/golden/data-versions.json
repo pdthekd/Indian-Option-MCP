@@ -1,0 +1,7 @@
+{
+  "note": "Pinned data versions of the reference range, one per normalizer version. The raw hash is ground truth and equals the golden files. v2 (instrumentId) added 2026-10-04 by re-normalizing the same raw zips.",
+  "pins": [
+    { "from": "2024-10-01", "to": "2026-10-01", "days": 495, "rawSha256": "1dec6fbd068c4f3b0f7e59acbe67d9e211797935bd782fd25e2cd013bb09270f", "normalizerVersion": 1, "normalizedSha256": "223e2874f2f4eb7ce4882eea1809a563c5266b0400293ea62d4692684dbec633" },
+    { "from": "2024-10-01", "to": "2026-10-01", "days": 495, "rawSha256": "1dec6fbd068c4f3b0f7e59acbe67d9e211797935bd782fd25e2cd013bb09270f", "normalizerVersion": 2, "normalizedSha256": "6c4bc2bd47598dd0c58715ac5513784dea4e08c7f02773f39c2f0378d5faa5ab" }
+  ]
+}

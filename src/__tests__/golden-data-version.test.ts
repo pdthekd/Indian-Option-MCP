@@ -21,7 +21,9 @@ function makeRoot(files: Record<string, string>): string {
   mkdirSync(join(root, 'normalized'));
   for (const [d, body] of Object.entries(files)) {
     writeFileSync(join(root, 'raw', `${d}.csv.zip`), `raw-${body}`);
-    writeFileSync(join(root, 'normalized', `${d}.jsonl`), body);
+    // v2 records carry instrumentId; a body starting with 'v1:' writes a v1-format record.
+    const rec = body.startsWith('v1:') ? { tradeDate: d, x: body } : { tradeDate: d, instrumentId: '1', x: body };
+    writeFileSync(join(root, 'normalized', `${d}.jsonl`), JSON.stringify(rec) + '\n');
   }
   return root;
 }
@@ -36,6 +38,12 @@ describe('data version', () => {
     expect(altered.rawSha256).not.toBe(a.rawSha256);
     expect(computeDataVersion(makeRoot({ '2026-01-01': 'x' }), ['2026-01-01']).rawSha256).not.toBe(a.rawSha256);
     expect(() => computeDataVersion(makeRoot({}), ['2026-01-01'])).toThrow(/normalized file missing/);
+    expect(a.normalizerVersion).toBe(2);
+  });
+  it('detects the normalized format per file and refuses a mixed store', () => {
+    expect(computeDataVersion(makeRoot({ '2026-01-01': 'v1:x' }), ['2026-01-01']).normalizerVersion).toBe(1);
+    expect(() => computeDataVersion(makeRoot({ '2026-01-01': 'v1:x', '2026-01-02': 'y' }), ['2026-01-01', '2026-01-02']))
+      .toThrow(/mixes formats/);
   });
 });
 
@@ -62,6 +70,13 @@ describe('golden results', () => {
     const d = compareGolden(o, r);
     expect(d).toContain('brokeragePlanId: expected ZERODHA-FO-r2, got ZERODHA-FO-r3');
     expect(d.some((x) => x.startsWith('netTotal'))).toBe(true);
+    // Normalized hash is compared only within one normalizer version; raw hash always.
+    const notes: string[] = [];
+    const v2 = { ...o, data: { ...o.data, normalizerVersion: 2, normalizedSha256: 'f'.repeat(64) } };
+    expect(compareGolden(o, v2, notes)).toEqual([]);
+    expect(notes[0]).toMatch(/normalizer v1, this run v2/);
+    expect(compareGolden(o, { ...o, data: { ...o.data, normalizedSha256: 'f'.repeat(64) } })).toHaveLength(1);
+    expect(compareGolden(o, { ...v2, data: { ...v2.data, rawSha256: 'f'.repeat(64) } }).join()).toMatch(/rawSha256/);
     const missing = { ...o, perTrade: o.perTrade.slice(1) };
     expect(compareGolden(o, missing)).toContain(`trade ${o.perTrade[0].id}: missing`);
   });

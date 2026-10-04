@@ -152,6 +152,50 @@ describe('fail-closed data checks', () => {
   });
 });
 
+describe('contract identity by instrument id (NSE expiry relabelling)', () => {
+  // The traded contracts (labelled E on D1/D2) are relabelled by NSE to E2 from D3 on, as NSE did on 2025-08-01.
+  const E2 = '2026-09-30';
+  const ids = (rows: BhavRecord[], label?: string) =>
+    rows.map((r) => (r.expiry === E || r.expiry === E2 ? { ...r, instrumentId: `${r.strike}${r.optionType}`, expiry: label ?? r.expiry } : r));
+  const settleDay = chainFor(E2, E2, (k, t) => (t === 'CE' ? Math.max(25600 - k, 0.05) : Math.max(k - 25600, 0.05)), 25600, 25600);
+  const data: Record<string, BhavRecord[]> = {
+    [D1]: ids(DATA[D1]), [D2]: ids(DATA[D2]), [D3]: ids(DATA[D3], E2), [E2]: ids(settleDay),
+  };
+  const dates = [D1, D2, D3, E2];
+  const run = (d: Record<string, BhavRecord[]>) =>
+    runEodBacktest({ strategy: createRefIronCondor(), tradeDates: dates, load: (x) => d[x] ?? [], from: D1, to: E2, requireContinuousData: false });
+
+  it('follows a relabelled expiry and settles on the new date instead of failing or mis-settling', () => {
+    const res = run(data);
+    expect(res.expiryRelabels).toEqual([{ date: D3, from: E, to: E2 }]);
+    expect(res.trades).toHaveLength(1);
+    expect(res.trades[0]).toMatchObject({ expiry: E2, settlementPrice: 25600 });
+    expect(res.trades[0].legs.every((l) => l.instrumentId)).toBe(true);
+    expect(res.trades[0].pnl.grossPnL).toBe(845 - 6500); // same economics as the un-relabelled case
+  });
+
+  it('fails closed when a held contract disappears before its expiry', () => {
+    const gone = { ...data, [D3]: data[D3].filter((r) => !(r.strike === 25500 && r.optionType === 'CE')) };
+    expect(() => run(gone)).toThrow(/CE 25500 \(id 25500CE\) missing from 2026-09-24/);
+  });
+
+  it('records why an expiry evening produced no trade', () => {
+    // On E2 evening the expiring contracts are the only ones listed: no later expiry.
+    expect(run(data).noTrade).toEqual([{ date: E2, reason: 'No later NIFTY expiry listed' }]);
+    const untraded = { ...data, [D1]: data[D1].map((r) => (r.expiry === E && r.strike === 25750 && r.optionType === 'CE' ? { ...r, volumeContracts: 0 } : r)) };
+    const res = run(untraded);
+    expect(res.trades).toHaveLength(0);
+    expect(res.noTrade[0]).toEqual({ date: D1, reason: `Leg(s) not listed or untraded on ${D1} for ${E}: long call 25750` });
+  });
+
+  it('the parser keeps NSE FinInstrmId', async () => {
+    const { parseBhavcopyCsv } = await import('../history/bhavcopy.js');
+    const csv = 'TradDt,FinInstrmTp,FinInstrmId,TckrSymb,XpryDt,StrkPric,OptnTp,OpnPric,HghPric,LwPric,ClsPric,SttlmPric,OpnIntrst,TtlTradgVol,NewBrdLotQty,UndrlygPric\n'
+      + '2025-08-01,IDO,64694,NIFTY,2025-09-30,25000.00,CE,1,1,1,1,1,1,1,75,24500\n';
+    expect(parseBhavcopyCsv(csv)[0]).toMatchObject({ instrumentId: '64694', expiry: '2025-09-30' });
+  });
+});
+
 describe('reference spec', () => {
   it('is a validated, versioned BACKTEST-status spec with a defined-risk structure', () => {
     expect(REF_IRON_CONDOR_SPEC.status).toBe('BACKTEST');

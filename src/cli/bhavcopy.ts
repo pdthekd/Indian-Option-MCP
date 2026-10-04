@@ -7,7 +7,7 @@
  */
 
 import { fetchBhavcopy, loadBhavcopy, checkLotSizes, DEFAULT_SYMBOLS, UDIFF_START } from '../history/bhavcopy.js';
-import { isNseTradingHoliday, holidayDataStatus } from '../data/constants/holidays.js';
+import { expectBhavcopy } from '../data/constants/holidays.js';
 import { dataRoot } from '../history/paths.js';
 
 const MAX_DAYS = 400;
@@ -47,17 +47,16 @@ async function main(): Promise<void> {
   console.error(`Data directory: ${dataRoot()}`);
 
   const counts = { OK: 0, NO_FILE: 0, ERROR: 0, SKIPPED: 0 };
-  let first = true;
+  let noDelay = true;
   for (const d of all) {
-    const dow = new Date(`${d}T00:00:00Z`).getUTCDay();
-    const year = Number(d.slice(0, 4));
-    if (dow === 0 || dow === 6 || (isNseTradingHoliday(d) && holidayDataStatus(year).verification === 'OFFICIAL')) {
+    // Weekends and official holidays are skipped, except special (Muhurat) sessions, which do publish a bhavcopy.
+    if (!expectBhavcopy(d)) {
       counts.SKIPPED++;
       continue;
     }
-    if (!first) await new Promise((r) => setTimeout(r, GAP_MS));
-    first = false;
+    if (!noDelay) await new Promise((r) => setTimeout(r, GAP_MS));
     const e = await fetchBhavcopy(d, { symbols });
+    noDelay = e.source === 'cache'; // re-normalizing a stored raw file was not a download: no politeness delay needed
     counts[e.status]++;
     console.error(`${d}  ${e.status.padEnd(7)} ${e.status === 'OK' ? `${e.rows} rows, kept ${e.keptRows}` : e.detail ?? ''}`);
   }

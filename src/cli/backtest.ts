@@ -10,13 +10,13 @@
  * --verify exits 2 unless the run reproduces the golden file exactly (data version included).
  */
 
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { dataDir } from '../history/paths.js';
 import { loadBhavcopy } from '../history/bhavcopy.js';
 import { runEodBacktest, SPREAD_MODELS, EOD_PESSIMISTIC_V1 } from '../backtest/eod-engine.js';
 import { buildReport, renderMarkdown } from '../backtest/report.js';
-import { computeDataVersion } from '../backtest/data-version.js';
+import { computeDataVersion, type DataVersion } from '../backtest/data-version.js';
 import { toGolden, compareGolden, type GoldenResult } from '../backtest/golden.js';
 import { DEFAULT_BROKERAGE_PLAN, brokeragePlanFor } from '../costs/transaction-cost-engine.js';
 import { SUPERSEDED_BROKERAGE_PLANS } from '../config/charges/brokerage.js';
@@ -77,7 +77,21 @@ function main(): number {
   const verify = arg('verify');
   if (verify) {
     const expected = JSON.parse(readFileSync(verify, 'utf8')) as GoldenResult;
-    const diffs = compareGolden(expected, golden);
+    const notes: string[] = [];
+    const diffs = compareGolden(expected, golden, notes);
+    for (const n of notes) console.error(`NOTE: ${n}`);
+    // A pin file next to the golden can supply the normalized hash for newer normalizer versions.
+    const pinFile = join(dirname(verify), 'data-versions.json');
+    if (existsSync(pinFile)) {
+      const pins = (JSON.parse(readFileSync(pinFile, 'utf8')) as { pins: Array<DataVersion & { normalizerVersion: number }> }).pins;
+      const pin = pins.find((p) => p.from === data.from && p.to === data.to && p.normalizerVersion === (data.normalizerVersion ?? 1));
+      if (!pin) diffs.push(`no pinned data version for ${data.from} → ${data.to}, normalizer v${data.normalizerVersion ?? 1} in ${pinFile}`);
+      else {
+        if (pin.rawSha256 !== data.rawSha256) diffs.push(`pinned raw hash differs: ${pin.rawSha256} vs ${data.rawSha256}`);
+        if (pin.normalizedSha256 !== data.normalizedSha256) diffs.push(`pinned normalized hash (v${pin.normalizerVersion}) differs: ${pin.normalizedSha256} vs ${data.normalizedSha256}`);
+        else console.error(`Normalized data matches pinned v${pin.normalizerVersion} hash.`);
+      }
+    }
     if (diffs.length) {
       console.error(`VERIFY FAILED against ${verify}: ${diffs.length} difference(s)`);
       for (const d of diffs.slice(0, 40)) console.error(`  ${d}`);

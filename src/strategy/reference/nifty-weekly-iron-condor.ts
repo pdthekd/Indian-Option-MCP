@@ -14,7 +14,7 @@
  */
 
 import { StrategySpecSchema, fingerprint, type StrategySpec } from '../strategy-spec.js';
-import type { EodStrategy, EveningContext, Proposal } from '../../backtest/eod-engine.js';
+import type { EodStrategy, EveningContext, NoTrade, Proposal } from '../../backtest/eod-engine.js';
 import type { BhavRecord } from '../../history/bhavcopy.js';
 
 export const REF_IRON_CONDOR_SPEC: StrategySpec = StrategySpecSchema.parse({
@@ -69,15 +69,16 @@ export function createRefIronCondor(): EodStrategy {
     version: REF_IRON_CONDOR_SPEC.version,
     fingerprint: fingerprint(REF_IRON_CONDOR_SPEC),
     symbols: [SYMBOL],
-    onEvening(ctx: EveningContext): Proposal | null {
+    onEvening(ctx: EveningContext): Proposal | NoTrade | null {
       if (ctx.hasOpenPosition) return null;
       const opts = ctx.rows.filter((r) => r.symbol === SYMBOL && r.instrumentType === 'IDX_OPT');
       // Only on the evening of an expiry day.
       if (!opts.some((r) => r.expiry === ctx.date)) return null;
       const next = [...new Set(opts.map((r) => r.expiry))].filter((e) => e > ctx.date).sort()[0];
-      if (!next) return null;
+      // From here the rule applies tonight: any failure is reported as a reason, never silently dropped.
+      if (!next) return { noTrade: 'No later NIFTY expiry listed' };
       const s = opts.find((r) => r.underlyingPrice !== null)?.underlyingPrice;
-      if (!s) return null;
+      if (!s) return { noTrade: 'No NIFTY underlying value in the bhavcopy' };
 
       const traded = (r: BhavRecord | undefined) => !!r && (r.volumeContracts ?? 0) > 0 && (r.close ?? 0) > 0;
       const puts = strikes(opts, next, 'PE');
@@ -86,7 +87,11 @@ export function createRefIronCondor(): EodStrategy {
       const longPut = shortPut && [...puts].reverse().find((r) => (r.strike as number) <= (shortPut.strike as number) - 0.01 * s);
       const shortCall = calls.find((r) => (r.strike as number) >= 1.02 * s);
       const longCall = shortCall && calls.find((r) => (r.strike as number) >= (shortCall.strike as number) + 0.01 * s);
-      if (![shortPut, longPut, shortCall, longCall].every(traded)) return null;
+      const legs = { 'long put': longPut, 'short put': shortPut, 'short call': shortCall, 'long call': longCall };
+      const bad = Object.entries(legs).filter(([, r]) => !traded(r || undefined));
+      if (bad.length) {
+        return { noTrade: `Leg(s) not listed or untraded on ${ctx.date} for ${next}: ${bad.map(([k, r]) => (r ? `${k} ${r.strike}` : `${k} (no strike)`)).join(', ')}` };
+      }
 
       return {
         symbol: SYMBOL,

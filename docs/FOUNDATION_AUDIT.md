@@ -60,7 +60,7 @@ Spec limits that the backtest does not enforce never came into play:
 | Look-ahead | Strategy sees only the signal day's rows (unit test); fills at the next close; regime lookbacks end at the signal | None found |
 | Fill model | Next close ± half-spread, rounded to the ₹0.05 tick against the trader; legs must have traded on the fill day | As documented; 0 trades skipped |
 | Contracts | Expiry, strike, type and lot size taken from the fill-day bhavcopy; settlement = `SttlmPric` of expiring options (all rows agree) | Correct; lot sizes 25 / 75 / 65 observed and applied by trade date |
-| Expiry relabelling | NSE changed the listed expiry of long-dated NIFTY contracts mid-life (on 2025-08-01 for the Thursday→Tuesday switch, and on 2025-12-29 for a holiday) | No weekly trade affected. The engine identifies contracts by expiry, so a multi-week strategy would fail closed, not mis-settle. Open item F6 |
+| Expiry relabelling | NSE changed the listed expiry of long-dated NIFTY contracts mid-life (on 2025-08-01 for the Thursday→Tuesday switch, and on 2025-12-29 for a holiday) | No weekly trade affected. Since F6 was fixed, held contracts are tracked by `FinInstrmId` and relabels are followed |
 | Independent P&L | `scripts/verify_reference.py`: Python, raw zips, no shared code, own charge schedules | **All 104 trades match both golden files to the paisa** (gross, costs, spread, net, settlement price, entry date) |
 | Signals | 105 expiry evenings in range → 104 trades + 1 whose expiry falls after the range end | No signal silently dropped |
 
@@ -131,14 +131,15 @@ See EXPERIMENT_PROTOCOL.md.
 | F3 | An open position with no expiry-day data would stay open forever and drop out of results | High: silent loss omission | **Fixed**: throws |
 | F4 | 2024 NSE holidays missing (needed for F2 on 2024 data) | Low | **Fixed** (circular FAOP59723 + special sessions) |
 | F5 | Empirical VaR tail size used `ceil(5.000000000000004) = 6` (new code, caught by tests) | Low | **Fixed** |
-| F6 | Contracts identified by expiry, but NSE relabels expiries mid-life | Medium for multi-week holds | Open: identify by `FinInstrmId` before any strategy holds > 1 week |
-| F7 | A signal whose legs are untraded on the signal day returns no proposal, and is not recorded as skipped | Low (did not occur) | Open: record no-signal reasons in the engine |
+| F6 | Contracts identified by expiry, but NSE relabels expiries mid-life | Medium for multi-week holds | **Fixed** (2026-10-04): normalizer v2 stores `FinInstrmId` (verified stable across a relabel); the engine follows held legs by id daily, follows a relabel when all legs agree, and throws if a held contract vanishes. Tested; reference results unchanged |
+| F7 | A signal whose legs are untraded on the signal day returns no proposal, and is not recorded as skipped | Low (did not occur) | **Fixed**: strategies may return `{ noTrade: reason }`; the engine records it (`result.noTrade`). The reference run records none, confirming no expiry evening was dropped |
 | F8 | Spec liquidity, spread and data-quality limits not enforced in the backtest | Low (never bound) | Open |
 | F9 | Spread uncalibrated; the bhavcopy close is not a tradable price | High for any positive-gross strategy | Open: quote recorder running; rule pre-registered |
 | F10 | Charges after 2026-04-01 and settlement charges not yet seen on a contract note | Medium | Open |
 | F11 | Margin is a proxy | Medium | Open |
 | F12 | A test claimed to cover the broker-disconnect lockout but did not | Low | **Fixed**: new test (preview and confirm both fail closed) |
 | F13 | vitest dev dependency, moderate advisory | Low (dev only) | Accepted; upgrade to vitest 5 later |
+| F14 | The download CLI skipped Muhurat special sessions (bhavcopy published on a holiday), so a clean checkout would get 493 of the 495 days and fail verification. **Two reference trades were filled at Muhurat-session closes** (entries 2024-11-01 and 2025-10-21; net +₹1,251.96 and +₹829.18) | Medium: reproducibility; fill realism | Download **fixed** (`SPECIAL_SESSIONS`, `expectBhavcopy`). Fill policy **open, owner decision**: a ~1-hour thin session's close is a doubtful fill price. Excluding special sessions from fills would change the frozen result, so it must be a new registered experiment. Either way the strategy stays REJECTED (net would fall by up to ₹2,081 if those trades were dropped) |
 
 ## Paper, shadow and live policy (unchanged, restated)
 
@@ -166,7 +167,7 @@ See SECURITY_AUDIT.md, "Re-audit, Foundation phase":
 ```bash
 npm ci --ignore-scripts && npm run build && npm test
 node dist/bhavcopy-cli.mjs --from 2024-07-08 --to 2026-10-01
-npm run backtest:verify && npm run backtest:verify-original
+npm run backtest:verify && npm run backtest:verify-original   # raw hash + every trade exact; normalized hash vs data-versions.json pin
 python scripts/verify_reference.py --golden src/strategy/reference/golden/ref_iron_condor_v1.0.0_audited_r3_v1.json
 python scripts/audit_bhavcopy.py
 node dist/foundation-analysis-cli.mjs
@@ -179,6 +180,6 @@ node dist/experiments-cli.mjs verify
   - ≥ 20 recorded sessions and a calibrated spread under the pre-registered rule
   - a reconciled contract note from after April 2026 that includes an expiry-day ITM settlement
   - broker-verified margin for one structure
-  - F6 and F7 closed
+  - a decision on F14 (fills in special sessions)
 - **Strategy**: nothing. v1.0.0 is rejected. A different strategy starts as a new registered
   experiment, and the answer may again be NO TRADE.

@@ -31,6 +31,9 @@ others are for sensitivity only), `--write-golden <file>`, `--verify <golden fil
 | Dates without a charge schedule (before 2024-10-01) throw | Fail closed |
 | A missing expected trading day (weekday, not an official holiday) throws | No silent gaps |
 | An open position whose expiry-day data is missing throws | No position silently survives expiry |
+| Held legs are followed by NSE instrument id (`FinInstrmId`) every day; an expiry relabel is followed, a vanished contract throws | NSE relabels expiries of listed contracts (2025-08-01, 2025-12-29) |
+| A strategy may return `{ noTrade: reason }`; reasons are recorded in `result.noTrade` | No silently dropped signals |
+| Any day with a bhavcopy is a trading day, including Muhurat special sessions | Two reference trades filled in Muhurat sessions (FOUNDATION_AUDIT F14, open) |
 | Every result records brokerage plan, spread model and a data version (sha256 of raw and normalized files) | Exact reproducibility |
 
 Reports (`src/backtest/report.ts`): GROSS / COSTS / NET; net expectancy ± standard error, win rate,

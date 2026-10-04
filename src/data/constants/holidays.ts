@@ -150,6 +150,32 @@ export function holidayDataStatus(year: number): { verification: HolidayVerifica
     : { verification: 'UNKNOWN', source: `No holiday list recorded for ${year}; weekdays are assumed to be trading days.` };
 }
 
+/**
+ * Special (Muhurat) trading sessions held on a holiday or weekend. NSE publishes an F&O bhavcopy for
+ * them, so they must be downloaded for a complete dataset. Whether a strategy may trade in them is a
+ * separate policy question (docs/FOUNDATION_AUDIT.md F14).
+ */
+export const SPECIAL_SESSIONS: Readonly<Record<string, string>> = Object.freeze({
+  '2024-11-01': 'Muhurat trading (Diwali), bhavcopy published',
+  '2025-10-21': 'Muhurat trading (Diwali), bhavcopy published',
+  '2026-11-08': 'Muhurat trading (Diwali, Sunday), timings notified separately',
+});
+
+export function isSpecialSession(dateIso: string): boolean {
+  return SPECIAL_SESSIONS[dateIso] !== undefined;
+}
+
+/**
+ * Should a bhavcopy exist for this date? Regular weekdays that are not official holidays, plus
+ * special sessions. Years without an official list keep every weekday (download and let NSE answer).
+ */
+export function expectBhavcopy(dateIso: string): boolean {
+  if (isSpecialSession(dateIso)) return true;
+  const dow = new Date(`${dateIso}T00:00:00Z`).getUTCDay();
+  if (dow === 0 || dow === 6) return false;
+  return !(isNseTradingHoliday(dateIso) && holidayDataStatus(yearOf(dateIso)).verification === 'OFFICIAL');
+}
+
 /** Sorted weekday holidays for a year (empty if unknown). */
 export function nseHolidaysForYear(year: number): string[] {
   return Object.keys(YEARS[year]?.holidays ?? {}).sort();
