@@ -13,6 +13,8 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { closingWindowCoverage, type ClosingWindowCoverage } from '../history/closing-window.js';
+import type { QuoteSnapshotRow } from '../history/quote-recorder.js';
 
 const IST_MS = 5.5 * 3_600_000;
 const dir = join(process.env.OPTIONS_HQ_DATA_DIR ?? join(homedir(), '.options-hq', 'data'), 'quotes', 'nse-fo');
@@ -51,6 +53,7 @@ function main(): void {
 
   const rowsBySymbol: Record<string, number> = {};
   const medianSpread: Record<string, number> = {};
+  const closeRows: QuoteSnapshotRow[] = [];
   for (const f of existsSync(dir) ? readdirSync(dir).filter((x) => x.startsWith(`${today}_`) && x.endsWith('.jsonl')) : []) {
     const sym = f.slice(11, -6);
     const lines = readFileSync(join(dir, f), 'utf8').split('\n').filter((l) => l.trim());
@@ -58,7 +61,8 @@ function main(): void {
     if (kind === 'close') {
       const spreads: number[] = [];
       for (const l of lines) {
-        const r = JSON.parse(l) as { bid: number | null; ask: number | null };
+        const r = JSON.parse(l) as QuoteSnapshotRow;
+        closeRows.push(r);
         if (typeof r.bid === 'number' && typeof r.ask === 'number' && r.bid > 0 && r.ask >= r.bid) spreads.push(r.ask - r.bid);
       }
       const m = median(spreads);
@@ -66,6 +70,7 @@ function main(): void {
     }
   }
   const totalRows = Object.values(rowsBySymbol).reduce((a, b) => a + b, 0);
+  const closingWindow: ClosingWindowCoverage | null = kind === 'close' ? closingWindowCoverage(closeRows).find((c) => c.date === today) ?? null : null;
 
   // Verdict rules (same as the scheduled-task instructions), applied deterministically.
   let verdict: 'OK' | 'HOLIDAY' | 'PROBLEM' = 'PROBLEM';
@@ -97,6 +102,14 @@ function main(): void {
     lastWriteAt: s?.lastWriteAt ?? null, lastWriteIst: s?.lastWriteAt ? istTime(s.lastWriteAt) : null,
     processRowsToday: s?.rowsToday ?? null, rowsBySymbol, totalRowsToday: totalRows,
     medianSpread: kind === 'close' ? medianSpread : undefined,
+    // 15:00–15:29 IST minutes recorded (the window execution calibration uses). Informational.
+    closingWindow: kind === 'close'
+      ? closingWindow && {
+        minutesCovered: closingWindow.minutesCoveredAllSymbols, of: 30, rating: closingWindow.rating,
+        bySymbol: closingWindow.minutesCoveredBySymbol, twoSidedQuotes: closingWindow.twoSidedQuotes,
+        missingMinutes: closingWindow.missingMinutes,
+      }
+      : undefined,
     consecutiveEmptyCycles: s?.consecutiveEmptyCycles ?? null, lastError: s?.lastError ?? null,
     lastSkipReasons: s?.lastSkipReasons ?? [], suggestedVerdict: verdict, cause, logTail,
   }, null, 2));

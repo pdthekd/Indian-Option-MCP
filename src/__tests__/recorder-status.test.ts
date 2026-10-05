@@ -36,3 +36,28 @@ describe('recorder status', () => {
     expect(readStatus(dir)).toEqual(base);
   });
 });
+
+describe('closing-window coverage (15:00–15:29 IST)', async () => {
+  const { closingWindowCoverage } = await import('../history/closing-window.js');
+  const row = (utc: string, symbol: string, bid: number | null = 10, ask: number | null = 10.5) => ({
+    recordedAt: utc, sourceAsOf: null, quality: 'FULL', source: 'x', symbol, expiry: '2026-10-06', spot: 1, strike: 1,
+    type: 'CE' as const, bid, ask, bidQty: 1, askQty: 1, ltp: null, iv: null, oi: null, volume: null,
+  });
+  it('counts minutes with data for every symbol, per symbol, two-sided quotes, and rates the session', () => {
+    const rows = [];
+    // NIFTY every minute 15:00–15:29 IST (09:30–09:59 UTC); BANKNIFTY only 15:00–15:14; one row outside the window.
+    for (let m = 0; m < 30; m++) rows.push(row(`2026-10-05T09:${String(30 + m).padStart(2, '0')}:10Z`, 'NIFTY'));
+    for (let m = 0; m < 15; m++) rows.push(row(`2026-10-05T09:${String(30 + m).padStart(2, '0')}:20Z`, 'BANKNIFTY', null, 5));
+    rows.push(row('2026-10-05T10:01:00Z', 'NIFTY')); // 15:31 IST
+    const [c] = closingWindowCoverage(rows);
+    expect(c.date).toBe('2026-10-05');
+    expect(c.minutesCoveredBySymbol).toEqual({ BANKNIFTY: 15, NIFTY: 30 });
+    expect(c.minutesCoveredAllSymbols).toBe(15);
+    expect(c.twoSidedQuotes).toBe(30);           // BANKNIFTY rows have no bid
+    expect(c.rating).toBe('PARTIAL');           // worst symbol 15 of 30
+    expect(c.missingMinutes[0]).toBe('15:15');
+  });
+  it('rates NONE when nothing was recorded in the window', () => {
+    expect(closingWindowCoverage([row('2026-10-05T04:00:00Z', 'NIFTY')])[0].rating).toBe('NONE');
+  });
+});

@@ -18,6 +18,7 @@ import { loadBhavcopy, type BhavRecord } from '../history/bhavcopy.js';
 import type { QuoteSnapshotRow } from '../history/quote-recorder.js';
 import { calibrate, CALIBRATION_RULE } from '../analytics/spread-calibration.js';
 import { closeGapObservations, summarizeGaps, CLOSE_WINDOW_IST } from '../analytics/close-gap.js';
+import { closingWindowCoverage } from '../history/closing-window.js';
 
 const istDay = (iso: string) => new Date(Date.parse(iso) + 5.5 * 3_600_000).toISOString().slice(0, 10);
 
@@ -50,7 +51,8 @@ function main(): void {
   const readiness = calibrate(quotes, { expiryDaySessions: expiryDays, bigMoveSessions: bigMoves });
   const obs = closeGapObservations(quotes, bhav);
   const gaps = summarizeGaps(obs);
-  const out = { generated: new Date().toISOString(), sessions, missingBhavcopy: missingBhav, readiness, closeGap: { window: CLOSE_WINDOW_IST, observations: obs.length, buckets: gaps } };
+  const coverage = closingWindowCoverage(quotes);
+  const out = { generated: new Date().toISOString(), sessions, missingBhavcopy: missingBhav, closingWindowCoverage: coverage, readiness, closeGap: { window: CLOSE_WINDOW_IST, observations: obs.length, buckets: gaps } };
   const base = join(dataDir('calibration'), 'calibration-report');
   writeFileSync(`${base}.json`, JSON.stringify({ ...out, observations: obs }, null, 2));
 
@@ -58,6 +60,10 @@ function main(): void {
   const p = (x: number | null) => (x === null ? '—' : `${(x * 100).toFixed(1)}%`);
   const md: string[] = ['# Execution calibration report', '',
     `Sessions recorded: ${sessions.length} (${sessions[0] ?? '—'} → ${sessions.at(-1) ?? '—'}); quotes ${quotes.length}. Bhavcopy missing for: ${missingBhav.join(', ') || 'none'}.`, '',
+    '## Closing-window coverage (15:00–15:29 IST, minutes with data for every symbol)', '',
+    '| Session | Minutes covered (of 30) | By symbol | Two-sided quotes | Rating |', '|---|---:|---|---:|---|',
+    ...coverage.map((c) => `| ${c.date} | ${c.minutesCoveredAllSymbols} | ${Object.entries(c.minutesCoveredBySymbol).map(([s, n]) => `${s} ${n}`).join(', ')} | ${c.twoSidedQuotes} | ${c.rating} |`),
+    '', 'Rating: GOOD ≥ 24 minutes for every symbol, PARTIAL ≥ 12, POOR below. Informational; the calibration rule below is unchanged.', '',
     `## Readiness (pre-registered rule, declared ${CALIBRATION_RULE.declared}): **${readiness.ready ? 'READY' : 'NOT READY'}**`, ''];
   for (const r of readiness.reasonsNotReady) md.push(`- ${r}`);
   md.push('', '| Premium bucket | Quotes 15:00–15:30 | Median half-spread | p75 | V1 at median mid | Eligible |', '|---|---:|---:|---:|---:|---|');
