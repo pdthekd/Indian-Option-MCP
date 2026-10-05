@@ -8,13 +8,15 @@
 // ────────────────────────────────────────────────────────────────────────────
 
 import type { DataProvider } from './providers/base.provider.js';
-import { NSEProvider } from './providers/nse.provider.js';
+import { NSEProvider, type NseProviderOptions } from './providers/nse.provider.js';
 import { ZerodhaProvider } from './providers/zerodha.provider.js';
 
 interface ProviderConfig {
   dataProvider: 'nse' | 'zerodha';
   kiteApiKey?: string;
   kiteAccessToken?: string;
+  /** NSE provider tuning (only used when dataProvider is 'nse'). */
+  nse?: NseProviderOptions;
 }
 
 /**
@@ -59,5 +61,5 @@ export function createDataProvider(
   }
 
   console.error('[ProviderFactory] Using NSE India provider (unofficial public endpoints).');
-  return new NSEProvider();
+  return new NSEProvider(cfg.nse);
 }

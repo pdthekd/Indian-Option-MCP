@@ -41,8 +41,11 @@ const INDEX_SYMBOLS = new Set([
 /** Minimum gap between two consecutive HTTP calls (ms). */
 const MIN_REQUEST_GAP_MS = 3_000;
 
-/** How often to refresh session cookies (ms). */
-const SESSION_REFRESH_MS = 5 * 60 * 1_000; // 5 minutes
+/**
+ * How often to refresh session cookies (ms). NSE's cookies stop working well before 5 minutes:
+ * on 2026-10-05 requests hung (rather than failing) about every 5–6 minutes until the next refresh.
+ */
+const SESSION_REFRESH_MS = 2 * 60 * 1_000; // 2 minutes
 
 /** Maximum retry attempts per request. */
 const MAX_RETRIES = 3;
@@ -109,8 +112,27 @@ interface NseSession {
 
 // ── Provider ──────────────────────────────────────────────────────────────
 
+/** Tuning for long-running callers (e.g. the quote recorder). Defaults suit interactive use. */
+export interface NseProviderOptions {
+  /** Per-request timeout (default 15 s). */
+  fetchTimeoutMs?: number;
+  /** Attempts per request (default 3). */
+  maxRetries?: number;
+  /** Session cookie lifetime before a proactive refresh (default 2 min). */
+  sessionRefreshMs?: number;
+  /**
+   * Use the degraded /api/liveEquity-derivatives fallback when the v3 chain fails (default true).
+   * The recorder sets false: it rejects DEGRADED data anyway, so the fallback only wastes time.
+   */
+  allowFallback?: boolean;
+}
+
 export class NSEProvider extends BaseProvider {
   readonly name = 'nse';
+
+  constructor(private readonly opts: NseProviderOptions = {}) {
+    super();
+  }
 
   private session: NseSession | null = null;
   private lastRequestAt = 0;
@@ -132,7 +154,7 @@ export class NSEProvider extends BaseProvider {
   private async refreshSession(): Promise<void> {
     console.error('[NSE] Refreshing session cookies …');
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), this.opts.fetchTimeoutMs ?? FETCH_TIMEOUT_MS);
 
     try {
       const res = await fetch(NSE_BASE, {
@@ -175,7 +197,7 @@ export class NSEProvider extends BaseProvider {
 
   private isSessionStale(): boolean {
     if (!this.session) return true;
-    return Date.now() - this.session.refreshedAt > SESSION_REFRESH_MS;
+    return Date.now() - this.session.refreshedAt > (this.opts.sessionRefreshMs ?? SESSION_REFRESH_MS);
   }
 
   private async ensureSession(): Promise<void> {
@@ -204,11 +226,18 @@ export class NSEProvider extends BaseProvider {
   }
 
   private async nseFetchInner<T>(path: string): Promise<T> {
-    await this.ensureSession();
-
+    const maxRetries = this.opts.maxRetries ?? MAX_RETRIES;
     let lastError: Error | null = null;
 
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      // Inside the loop: after a timeout the session is dropped, so the retry uses fresh cookies.
+      try {
+        await this.ensureSession();
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        await sleep(BASE_BACKOFF_MS * attempt);
+        continue;
+      }
       // Enforce minimum gap.
       const elapsed = Date.now() - this.lastRequestAt;
       if (elapsed < MIN_REQUEST_GAP_MS) {
@@ -217,7 +246,7 @@ export class NSEProvider extends BaseProvider {
 
       const url = `${NSE_BASE}${path}`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const timeoutId = setTimeout(() => controller.abort(), this.opts.fetchTimeoutMs ?? FETCH_TIMEOUT_MS);
 
       try {
         this.lastRequestAt = Date.now();
@@ -239,7 +268,7 @@ export class NSEProvider extends BaseProvider {
         // 401/403 ⇒ session expired — refresh and retry.
         if (res.status === 401 || res.status === 403) {
           console.error(
-            `[NSE] ${res.status} on ${path} – refreshing session (attempt ${attempt}/${MAX_RETRIES}).`,
+            `[NSE] ${res.status} on ${path} – refreshing session (attempt ${attempt}/${maxRetries}).`,
           );
           await this.refreshSession();
           lastError = new Error(`HTTP ${res.status}`);
@@ -250,7 +279,7 @@ export class NSEProvider extends BaseProvider {
         // 429 rate-limited.
         if (res.status === 429) {
           console.error(
-            `[NSE] 429 rate-limited on ${path} (attempt ${attempt}/${MAX_RETRIES}).`,
+            `[NSE] 429 rate-limited on ${path} (attempt ${attempt}/${maxRetries}).`,
           );
           lastError = new Error('HTTP 429 – rate limited');
           await sleep(BASE_BACKOFF_MS * attempt * 2);
@@ -260,7 +289,7 @@ export class NSEProvider extends BaseProvider {
         if (!res.ok) {
           lastError = new Error(`HTTP ${res.status} ${res.statusText}`);
           console.error(
-            `[NSE] ${lastError.message} on ${path} (attempt ${attempt}/${MAX_RETRIES}).`,
+            `[NSE] ${lastError.message} on ${path} (attempt ${attempt}/${maxRetries}).`,
           );
           await sleep(BASE_BACKOFF_MS * attempt);
           continue;
@@ -274,7 +303,7 @@ export class NSEProvider extends BaseProvider {
           text.trimStart().startsWith('<html')
         ) {
           console.error(
-            `[NSE] Got HTML instead of JSON on ${path} — likely blocked. Refreshing session (attempt ${attempt}/${MAX_RETRIES}).`,
+            `[NSE] Got HTML instead of JSON on ${path} — likely blocked. Refreshing session (attempt ${attempt}/${maxRetries}).`,
           );
           await this.refreshSession();
           lastError = new Error('NSE returned HTML instead of JSON (blocked)');
@@ -287,7 +316,7 @@ export class NSEProvider extends BaseProvider {
         } catch {
           lastError = new Error('Invalid JSON from NSE');
           console.error(
-            `[NSE] JSON parse error on ${path} (attempt ${attempt}/${MAX_RETRIES}).`,
+            `[NSE] JSON parse error on ${path} (attempt ${attempt}/${maxRetries}).`,
           );
           await sleep(BASE_BACKOFF_MS * attempt);
           continue;
@@ -296,10 +325,13 @@ export class NSEProvider extends BaseProvider {
         const msg = err instanceof Error ? err.message : String(err);
         lastError = new Error(msg);
         console.error(
-          `[NSE] Fetch error on ${path}: ${msg} (attempt ${attempt}/${MAX_RETRIES}).`,
+          `[NSE] Fetch error on ${path}: ${msg} (attempt ${attempt}/${maxRetries}).`,
         );
+        // NSE hangs (rather than rejecting) requests made with expired cookies: a timeout or network
+        // error invalidates the session so the next attempt refreshes it first.
+        this.session = null;
         if (msg.includes('abort')) {
-          console.error('[NSE] Request timed out.');
+          console.error('[NSE] Request timed out; session will be refreshed before retrying.');
         }
         await sleep(BASE_BACKOFF_MS * attempt);
       } finally {
@@ -307,7 +339,7 @@ export class NSEProvider extends BaseProvider {
       }
     }
 
-    throw lastError ?? new Error(`NSE request failed after ${MAX_RETRIES} retries`);
+    throw lastError ?? new Error(`NSE request failed after ${maxRetries} retries`);
   }
 
   // ── Utility: is this an index? ─────────────────────────────────────────
@@ -341,6 +373,10 @@ export class NSEProvider extends BaseProvider {
       const msg = err instanceof Error ? err.message : String(err);
       primaryError = msg;
       console.error(`[NSE] Option chain v3 failed: ${msg} — trying fallback endpoint.`);
+    }
+
+    if (this.opts.allowFallback === false) {
+      throw new Error(`NSE option chain v3 unavailable for ${upperSymbol}: ${primaryError} (fallback disabled).`);
     }
 
     // ── Fallback: /api/liveEquity-derivatives (available even after hours) ──

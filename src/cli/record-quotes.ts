@@ -72,7 +72,10 @@ async function main(): Promise<void> {
   };
   writeStatus(dir, status);
 
-  const recorder = new QuoteRecorder({ provider: createDataProvider(), symbols, strikesEachSide: strikes, marketOpen: isMarketOpen });
+  // Recorder tuning: short timeouts, 2 attempts, no degraded fallback (rejected anyway), so one hung
+  // NSE request cannot eat several minute-cycles (observed 2026-10-05).
+  const provider = createDataProvider({ nse: { fetchTimeoutMs: 8_000, maxRetries: 2, allowFallback: false } });
+  const recorder = new QuoteRecorder({ provider, symbols, strikesEachSide: strikes, marketOpen: isMarketOpen });
   console.error(`Recording ${symbols.join(', ')} every ${intervalS}s, ATM±${strikes}${until ? `, until ${until} IST` : ''}, to ${dir}`);
 
   let stop = false;

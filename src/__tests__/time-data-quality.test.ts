@@ -211,3 +211,42 @@ describe('redaction', () => {
     expect(o).toEqual({ apiKey: '[REDACTED]', nested: { access_token: '[REDACTED]', ok: 1 } });
   });
 });
+
+describe('NSE session handling (cookies expire silently; observed 2026-10-05)', () => {
+  it('refreshes the session after a timeout before retrying, and honours maxRetries', async () => {
+    const prov = new NSEProvider({ fetchTimeoutMs: 50, maxRetries: 2 }) as unknown as {
+      refreshSession: () => Promise<void>; session: unknown; nseFetchInner: (p: string) => Promise<unknown>;
+    };
+    let refreshes = 0;
+    prov.refreshSession = async () => { refreshes++; prov.session = { cookies: 'c', refreshedAt: Date.now() }; };
+    const realFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async (_u: unknown, init?: { signal?: AbortSignal }) => {
+      calls++;
+      if (calls === 1) {
+        // First request hangs until aborted (what NSE does with stale cookies).
+        return new Promise((_res, rej) => init?.signal?.addEventListener('abort', () => rej(new Error('This operation was aborted'))));
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      await expect(prov.nseFetchInner('/api/x')).resolves.toEqual({ ok: true });
+      expect(calls).toBe(2);
+      expect(refreshes).toBe(2); // initial session + refresh after the timeout
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }, 15_000);
+
+  it('allowFallback: false fails fast instead of using the degraded endpoint', async () => {
+    const prov = new NSEProvider({ allowFallback: false }) as unknown as {
+      getOptionChainV3: () => Promise<unknown>; getOptionChainFromDerivatives: () => Promise<unknown>;
+      getOptionChain: (s: string) => Promise<unknown>;
+    };
+    let fallbackUsed = false;
+    prov.getOptionChainV3 = async () => { throw new Error('This operation was aborted'); };
+    prov.getOptionChainFromDerivatives = async () => { fallbackUsed = true; return {}; };
+    await expect(prov.getOptionChain('NIFTY')).rejects.toThrow(/fallback disabled/);
+    expect(fallbackUsed).toBe(false);
+  });
+});
