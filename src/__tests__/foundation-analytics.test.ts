@@ -87,15 +87,38 @@ describe('spread calibration', () => {
     recordedAt: at, sourceAsOf: null, quality: 'FULL', source: 'x', symbol: 'NIFTY', expiry: '2026-10-06', spot: 25000,
     strike: 25500, type: 'CE', bid, ask, bidQty: 1, askQty: 1, ltp: null, iv: null, oi: null, volume: null,
   });
-  it('is not ready without enough sessions and uses only the 15:00–15:30 IST window', () => {
-    const rows = [q('2026-10-05T09:35:00Z', 10, 10.4), q('2026-10-05T04:00:00Z', 10, 12), q('2026-10-05T09:40:00Z', 0, 1)];
-    const r = calibrate(rows, { expiryDaySessions: 0, bigMoveSessions: 0 });
-    expect(r.quotesInWindow).toBe(1);   // 15:05 IST; the 09:30 IST quote is outside; zero bid rejected
-    expect(r.quotesRejected).toBe(1);
+  // One quote per minute of the 15:00–15:29 IST closing window (09:30–09:59 UTC) → a GOOD, counted session.
+  const fullWindow = (date: string, bid = 10, ask = 10.4) =>
+    Array.from({ length: 30 }, (_, m) => q(`${date}T09:${String(30 + m).padStart(2, '0')}:10Z`, bid, ask));
+  const none = { expiryDays: new Set<string>(), bigMoveDays: new Set<string>() };
+
+  it('uses only the closing window of counted sessions and is not ready without 20 of them', () => {
+    // Expectation changed 2026-10-19: a session now needs a GOOD closing window to count (rule amendment),
+    // so the fixture records the full window instead of two isolated quotes.
+    const rows = [...fullWindow('2026-10-05'), q('2026-10-05T04:00:00Z', 10, 12), q('2026-10-05T09:40:30Z', 0, 1)];
+    const r = calibrate(rows, none);
+    expect(r.sessions).toBe(1);
+    expect(r.quotesInWindow).toBe(30);   // the 09:30 IST quote is outside the window
+    expect(r.quotesRejected).toBe(1);    // zero bid
     expect(r.ready).toBe(false);
     expect(r.reasonsNotReady.join(' ')).toMatch(/20 required/);
-    expect(r.buckets.find((b) => b.quotes === 1)?.medianHalfSpread).toBe(0.2);
+    expect(r.buckets.find((b) => b.quotes === 30)?.medianHalfSpread).toBe(0.2);
     expect(CALIBRATION_RULE.percentile).toBe(0.75);
+  });
+
+  it('does not count a session whose closing window is not GOOD, nor use its quotes (amendment 2026-10-19)', () => {
+    // 2026-10-09-like day: the PC slept, so only the morning was recorded.
+    const slept = [q('2026-10-09T03:45:00Z', 10, 10.4), q('2026-10-09T09:35:00Z', 10, 30)];
+    const r = calibrate([...fullWindow('2026-10-08'), ...slept], { expiryDays: new Set(['2026-10-09']), bigMoveDays: new Set(['2026-10-09']) });
+    expect(r.sessionsRecorded).toBe(2);
+    expect(r.sessions).toBe(1);
+    expect(r.sessionsExcluded).toEqual([{ date: '2026-10-09', rating: 'POOR', minutesCovered: 1 }]);
+    expect(r.quotesInWindow).toBe(30);   // the excluded day's 15:05 quote is not used
+    // Its expiry / big-move status does not satisfy the conditions either.
+    expect(r.reasonsNotReady).toContain('no counted expiry-day session');
+    expect(r.reasonsNotReady).toContain('no counted session with a NIFTY move ≥ 1 %');
+    expect(CALIBRATION_RULE.sessionDefinition.amended).toBe('2026-10-19');
+    expect(CALIBRATION_RULE.declared).toBe('2026-10-04');   // the original declaration stands
   });
 });
 

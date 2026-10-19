@@ -52,6 +52,19 @@ A calibrated model may replace `EOD_PESSIMISTIC_V1` only when **all** of the fol
 6. The reference backtest is re-run with the new model as a **new registered experiment**; the old
    result and golden files remain.
 
+**Amendment, 2026-10-19 (made before any calibration result was computed; 10 qualifying sessions
+recorded at the time).** The rule said "≥ 20 sessions" without defining a session, so 2026-10-09 counted
+even though the PC slept at 09:17 and nothing was recorded in the closing window. From now on:
+
+- a session counts only if its 15:00–15:29 IST closing window is **GOOD**: at least 24 of 30 minutes
+  recorded for every symbol (`src/history/closing-window.ts`);
+- quotes from sessions that do not count are not used at all;
+- the expiry-day and ≥ 1 % NIFTY-move conditions must be met by counted sessions.
+
+This only makes the rule stricter. The rest of the rule is unchanged; it is encoded in
+`CALIBRATION_RULE.sessionDefinition` and tested. Status at the amendment: 11 sessions recorded, 10 counted
+(2026-10-09 excluded).
+
 The model is chosen by this rule, not by which spread gives the best P&L. A calibration that
 produces a *smaller* spread than V1 is accepted only through this rule; one that produces a larger
 spread is accepted the same way.
@@ -83,6 +96,12 @@ weekdays at 19:30 IST. It runs `~/.options-hq/run-evening.cmd` (outside the repo
 `bhavcopy-cli --last 7` and then `calibration-cli`. Days already stored are reused, so a bhavcopy NSE
 had not yet published at 19:30 is fetched on the next run. Output goes to
 `~/.options-hq/data/calibration/` (report and `evening.log`). It is read-only and places no orders.
+
+**Keep-awake (2026-10-19):** the PC idle-slept during the 2026-10-09 session. The recorder's launcher now
+runs it through `~/.options-hq/run-recorder-awake.ps1`, which holds a Windows "system required" request
+(`SetThreadExecutionState`) only while the recorder runs (09:10 until it stops itself at 15:35) and then
+releases it. Power settings are not changed. A closed lid or a manual Sleep still sleeps the PC. On NSE
+holidays the recorder idles until 15:35, so the PC stays awake until then.
 
 ## Still not addressed by calibration
 

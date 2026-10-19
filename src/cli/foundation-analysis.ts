@@ -107,8 +107,8 @@ function main(): void {
     for (const l of readFileSync(join(qdir, f), 'utf8').split('\n')) if (l.trim()) quotes.push(JSON.parse(l) as QuoteSnapshotRow);
   }
   const qSessions = [...new Set(quotes.map((q) => new Date(Date.parse(q.recordedAt) + 5.5 * 3_600_000).toISOString().slice(0, 10)))];
-  const bigMove = qSessions.filter((d) => { const i = undDates.indexOf(d); return i > 0 && Math.abs(und[i] / und[i - 1] - 1) >= 0.01; }).length;
-  const calib = calibrate(quotes, { expiryDaySessions: qSessions.filter((d) => expiryDays.has(d)).length, bigMoveSessions: bigMove });
+  const bigMoveDays = new Set(qSessions.filter((d) => { const i = undDates.indexOf(d); return i > 0 && Math.abs(und[i] / und[i - 1] - 1) >= 0.01; }));
+  const calib = calibrate(quotes, { expiryDays, bigMoveDays });
 
   const out = { generated: new Date().toISOString(), from: result.from, to: result.to, brokeragePlanId: plan, spreadModel: result.spreadModel,
     trades: result.trades.length, capital, margins, tail, tails, regimeThresholds: REGIME_THRESHOLDS, regimes: buckets,
