@@ -103,6 +103,12 @@ runs it through `~/.options-hq/run-recorder-awake.ps1`, which holds a Windows "s
 releases it. Power settings are not changed. A closed lid or a manual Sleep still sleeps the PC. On NSE
 holidays the recorder idles until 15:35, so the PC stays awake until then.
 
+**Resume after a reboot (2026-10-21):** on 2026-10-21 the PC crashed at 12:20 IST (bugcheck 0x113, NVIDIA
+display driver) and rebooted; the recorder was not restarted, so the session lost its closing window and
+does not count. The recorder task now also starts at logon (2-minute delay). The launcher only records on
+weekdays between 09:00 and 15:30 IST and otherwise exits without touching `status.json`. The task and the
+recorder both refuse to run a second copy. The recorder still resumes only after someone logs in.
+
 ## Still not addressed by calibration
 
 - Quotes are top-of-book snapshots polled about once a minute (NSE refresh rate not yet known), not
