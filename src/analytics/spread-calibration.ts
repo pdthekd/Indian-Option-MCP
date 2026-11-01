@@ -86,7 +86,7 @@ export function calibrate(
   const istDay = (iso: string) => new Date(Date.parse(iso) + 5.5 * 3_600_000).toISOString().slice(0, 10);
   const coverage = closingWindowCoverage(rows, recorded);
   const counted = new Set(coverage.filter((c) => c.rating === 'GOOD').map((c) => c.date));
-  const excluded = coverage.filter((c) => !counted.has(c.date)).map((c) => ({ date: c.date, rating: c.rating, minutesCovered: c.minutesCoveredAllSymbols }));
+  const excluded = coverage.filter((c) => !counted.has(c.date)).map((c) => ({ date: c.date, rating: c.rating, minutesCovered: c.minutesCovered }));
   const sessions = counted;
   let rejected = 0;
   const valid: Array<{ mid: number; half: number }> = [];

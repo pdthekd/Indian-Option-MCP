@@ -3,8 +3,8 @@
  * calibration uses) was actually recorded on a session.
  *
  * A minute counts as covered for a symbol when at least one row for that symbol was recorded in it.
- * Informational only: it tells you which sessions are thin; the pre-registered calibration rule
- * (src/analytics/spread-calibration.ts) is unchanged.
+ * Since the 2026-10-19 amendment the rating decides which sessions count for calibration
+ * (src/analytics/spread-calibration.ts): GOOD = at least 24 minutes for every symbol.
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -15,7 +15,9 @@ export const CLOSING_WINDOW = { startIst: '15:00', endIst: '15:29', minutes: 30 
 
 export interface ClosingWindowCoverage {
   date: string;
-  /** Minutes (of 30) with at least one row for EVERY symbol seen that day. */
+  /** Minutes (of 30) recorded for the worst-covered symbol: the number the rating and the calibration rule use. */
+  minutesCovered: number;
+  /** Minutes (of 30) with at least one row for EVERY symbol at once (overlap; can be lower than minutesCovered). */
   minutesCoveredAllSymbols: number;
   /** Minutes (of 30) with at least one row, per symbol. */
   minutesCoveredBySymbol: Record<string, number>;
@@ -88,6 +90,7 @@ export function closingWindowCoverage(rows: readonly QuoteSnapshotRow[], recorde
       worst === 0 && d.twoSided === 0 ? 'NONE' : worst >= 24 ? 'GOOD' : worst >= 12 ? 'PARTIAL' : 'POOR';
     return {
       date,
+      minutesCovered: worst,
       minutesCoveredAllSymbols: all.length,
       minutesCoveredBySymbol: bySymbol,
       twoSidedQuotes: d.twoSided,

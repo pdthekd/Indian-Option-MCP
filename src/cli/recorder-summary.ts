@@ -110,10 +110,11 @@ function main(): void {
     lastWriteAt: s?.lastWriteAt ?? null, lastWriteIst: s?.lastWriteAt ? istTime(s.lastWriteAt) : null,
     processRowsToday: s?.rowsToday ?? null, rowsBySymbol, totalRowsToday: totalRows,
     medianSpread: kind === 'close' ? medianSpread : undefined,
-    // 15:00–15:29 IST minutes recorded (the window execution calibration uses). Informational.
+    // 15:00–15:29 IST minutes recorded for the worst-covered symbol; GOOD (≥ 24) means the session counts for calibration.
     closingWindow: kind === 'close'
       ? closingWindow && {
-        minutesCovered: closingWindow.minutesCoveredAllSymbols, of: 30, rating: closingWindow.rating,
+        minutesCovered: closingWindow.minutesCovered, of: 30, rating: closingWindow.rating,
+        minutesAllSymbolsTogether: closingWindow.minutesCoveredAllSymbols,
         bySymbol: closingWindow.minutesCoveredBySymbol, twoSidedQuotes: closingWindow.twoSidedQuotes,
         missingMinutes: closingWindow.missingMinutes,
       }

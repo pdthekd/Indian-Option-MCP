@@ -56,10 +56,10 @@ function main(): void {
   const p = (x: number | null) => (x === null ? '—' : `${(x * 100).toFixed(1)}%`);
   const md: string[] = ['# Execution calibration report', '',
     `Sessions recorded: ${sessions.length} (${sessions[0] ?? '—'} → ${sessions.at(-1) ?? '—'}); quotes 15:00–15:30 IST ${quotes.length}. Bhavcopy missing for: ${missingBhav.join(', ') || 'none'}.`, '',
-    '## Closing-window coverage (15:00–15:29 IST, minutes with data for every symbol)', '',
-    '| Session | Minutes covered (of 30) | By symbol | Two-sided quotes | Rating |', '|---|---:|---|---:|---|',
-    ...coverage.map((c) => `| ${c.date} | ${c.minutesCoveredAllSymbols} | ${Object.entries(c.minutesCoveredBySymbol).map(([s, n]) => `${s} ${n}`).join(', ')} | ${c.twoSidedQuotes} | ${c.rating} |`),
-    '', 'Rating: GOOD ≥ 24 minutes for every symbol, PARTIAL ≥ 12, POOR below. Informational; the calibration rule below is unchanged.', '',
+    '## Closing-window coverage (15:00–15:29 IST)', '',
+    '| Session | Minutes covered (of 30, worst symbol) | By symbol | All symbols together | Two-sided quotes | Rating |', '|---|---:|---|---:|---:|---|',
+    ...coverage.map((c) => `| ${c.date} | ${c.minutesCovered} | ${Object.entries(c.minutesCoveredBySymbol).map(([s, n]) => `${s} ${n}`).join(', ')} | ${c.minutesCoveredAllSymbols} | ${c.twoSidedQuotes} | ${c.rating} |`),
+    '', 'Rating (worst symbol): GOOD ≥ 24 minutes, PARTIAL ≥ 12, POOR below, NONE = nothing in the window. Only GOOD sessions count for calibration (amendment 2026-10-19). "All symbols together" = minutes with a row for every symbol at once.', '',
     `## Readiness (pre-registered rule, declared ${CALIBRATION_RULE.declared}): **${readiness.ready ? 'READY' : 'NOT READY'}**`, ''];
   md.push(`Counted sessions: ${readiness.sessions} of ${readiness.sessionsRecorded} recorded (session definition amended ${CALIBRATION_RULE.sessionDefinition.amended}: ${CALIBRATION_RULE.sessionDefinition.rule})`, '');
   for (const x of readiness.sessionsExcluded) md.push(`- Not counted: ${x.date} (closing window ${x.minutesCovered}/30, ${x.rating})`);

@@ -53,6 +53,7 @@ describe('closing-window coverage (15:00–15:29 IST)', async () => {
     expect(c.date).toBe('2026-10-05');
     expect(c.minutesCoveredBySymbol).toEqual({ BANKNIFTY: 15, NIFTY: 30 });
     expect(c.minutesCoveredAllSymbols).toBe(15);
+    expect(c.minutesCovered).toBe(15);           // worst symbol: what the rating uses
     expect(c.twoSidedQuotes).toBe(30);           // BANKNIFTY rows have no bid
     expect(c.rating).toBe('PARTIAL');           // worst symbol 15 of 30
     expect(c.missingMinutes[0]).toBe('15:15');
