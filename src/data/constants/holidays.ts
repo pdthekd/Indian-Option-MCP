@@ -151,6 +151,24 @@ export function holidayDataStatus(year: number): { verification: HolidayVerifica
 }
 
 /**
+ * Missing holiday data the operator must add, for an IST date. Without a list every weekday counts
+ * as a trading day (e.g. Republic Day, Tue 2027-01-26, would look like an open market and an expiry).
+ * - the date's own year has no OFFICIAL list → 'missing' (market status and expiries are wrong now);
+ * - from 1 December, next year has no OFFICIAL list → 'due' (NSE usually publishes in mid-December).
+ */
+export function holidayDataGaps(todayIst: string): Array<{ year: number; level: 'missing' | 'due'; message: string }> {
+  const year = Number(todayIst.slice(0, 4));
+  const gaps: Array<{ year: number; level: 'missing' | 'due'; message: string }> = [];
+  if (holidayDataStatus(year).verification !== 'OFFICIAL') {
+    gaps.push({ year, level: 'missing', message: `No official NSE holiday list for ${year}: holidays are treated as trading days. Add it to src/data/constants/holidays.ts.` });
+  }
+  if (todayIst.slice(5, 7) === '12' && holidayDataStatus(year + 1).verification !== 'OFFICIAL') {
+    gaps.push({ year: year + 1, level: 'due', message: `NSE holiday list for ${year + 1} not added yet (NSE usually publishes it in mid-December).` });
+  }
+  return gaps;
+}
+
+/**
  * Special (Muhurat) trading sessions held on a holiday or weekend. NSE publishes an F&O bhavcopy for
  * them, so they must be downloaded for a complete dataset. Whether a strategy may trade in them is a
  * separate policy question (docs/FOUNDATION_AUDIT.md F14).

@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { closingWindowCoverage, type ClosingWindowCoverage } from '../history/closing-window.js';
 import type { QuoteSnapshotRow } from '../history/quote-recorder.js';
+import { holidayDataGaps } from '../data/constants/holidays.js';
 
 const IST_MS = 5.5 * 3_600_000;
 const dir = join(process.env.OPTIONS_HQ_DATA_DIR ?? join(homedir(), '.options-hq', 'data'), 'quotes', 'nse-fo');
@@ -95,6 +96,13 @@ function main(): void {
     else if (lastWriteIst !== null && lastWriteIst < '15:15') cause = `last write ${lastWriteIst} IST (stopped early)`;
     else cause = `state ${s.state ?? 'unknown'} at the end of the day`;
   }
+  // Missing holiday data makes HOLIDAY / OK verdicts unreliable: say so on every check.
+  const holidayGaps = holidayDataGaps(today);
+  const warnings = holidayGaps.map((g) => g.message);
+  if (holidayGaps.some((g) => g.level === 'missing') && verdict !== 'PROBLEM') {
+    verdict = 'PROBLEM';
+    cause = warnings[0];
+  }
 
   console.log(JSON.stringify({
     kind, checkedAt: nowIso, nowIst: istTime(nowIso), todayIst: today,
@@ -111,7 +119,7 @@ function main(): void {
       }
       : undefined,
     consecutiveEmptyCycles: s?.consecutiveEmptyCycles ?? null, lastError: s?.lastError ?? null,
-    lastSkipReasons: s?.lastSkipReasons ?? [], suggestedVerdict: verdict, cause, logTail,
+    lastSkipReasons: s?.lastSkipReasons ?? [], suggestedVerdict: verdict, cause, warnings, logTail,
   }, null, 2));
 }
 

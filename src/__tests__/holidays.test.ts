@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isNseTradingHoliday, holidayDataStatus, nseHolidaysForYear, nseHolidayName, expectBhavcopy, isSpecialSession } from '../data/constants/holidays.js';
+import { isNseTradingHoliday, holidayDataStatus, nseHolidaysForYear, nseHolidayName, expectBhavcopy, isSpecialSession, holidayDataGaps } from '../data/constants/holidays.js';
 import { getNextExpiry, isTradingDay } from '../data/constants/expiry-calendar.js';
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
@@ -68,5 +68,13 @@ describe('which dates should have a bhavcopy (download completeness)', () => {
       expect(expectBhavcopy(s)).toBe(true);
     }
     expect(isNseTradingHoliday('2025-10-21')).toBe(true); // still a holiday for regular trading
+  });
+});
+
+describe('holidayDataGaps', () => {
+  it('flags a year without an official list, and next year’s list from 1 December', () => {
+    expect(holidayDataGaps('2026-11-02')).toEqual([]);
+    expect(holidayDataGaps('2030-11-02').map((g) => [g.year, g.level])).toEqual([[2030, 'missing']]);
+    expect(holidayDataGaps('2030-12-01').map((g) => [g.year, g.level])).toEqual([[2030, 'missing'], [2031, 'due']]);
   });
 });
