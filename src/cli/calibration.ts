@@ -11,23 +11,19 @@
  * Download the day's bhavcopy first (node dist/bhavcopy-cli.mjs --from <date> --to <date>).
  */
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { dataDir } from '../history/paths.js';
 import { loadBhavcopy, type BhavRecord } from '../history/bhavcopy.js';
-import type { QuoteSnapshotRow } from '../history/quote-recorder.js';
 import { calibrate, CALIBRATION_RULE } from '../analytics/spread-calibration.js';
 import { closeGapObservations, summarizeGaps, CLOSE_WINDOW_IST } from '../analytics/close-gap.js';
-import { closingWindowCoverage } from '../history/closing-window.js';
-
-const istDay = (iso: string) => new Date(Date.parse(iso) + 5.5 * 3_600_000).toISOString().slice(0, 10);
+import { closingWindowCoverage, readClosingWindowQuotes } from '../history/closing-window.js';
 
 function main(): void {
-  const qdir = dataDir('quotes/nse-fo');
-  const files = existsSync(qdir) ? readdirSync(qdir).filter((f) => /^\d{4}-\d{2}-\d{2}_.+\.jsonl$/.test(f)).sort() : [];
-  const quotes: QuoteSnapshotRow[] = [];
-  for (const f of files) for (const l of readFileSync(join(qdir, f), 'utf8').split('\n')) if (l.trim()) quotes.push(JSON.parse(l) as QuoteSnapshotRow);
-  const sessions = [...new Set(quotes.map((x) => istDay(x.recordedAt)))].sort();
+  // Only rows stamped 15:00–15:30 IST are parsed, so memory stays flat as sessions accumulate.
+  const { rows: quotes, recorded } = readClosingWindowQuotes(dataDir('quotes/nse-fo'));
+  const sessions = [...recorded.keys()].sort();
+  const recordedSymbols = new Set([...recorded.values()].flat());
 
   // Session facts from the stored bhavcopy: expiry day? NIFTY move ≥ 1 % vs the previous stored day?
   const norm = join(dataDir('bhavcopy/nse-fo'), 'normalized');
@@ -39,7 +35,7 @@ function main(): void {
   for (const d of sessions) {
     const rows = loadBhavcopy(d);
     if (!rows) { missingBhav.push(d); continue; }
-    bhav.push(...rows);
+    bhav.push(...rows.filter((r) => r.instrumentType === 'IDX_OPT' && recordedSymbols.has(r.symbol)));
     const n = rows.filter((r) => r.symbol === 'NIFTY' && r.instrumentType === 'IDX_OPT');
     if (n.some((r) => r.expiry === d)) expiryDays.add(d);
     const prev = stored.filter((x) => x < d).at(-1);
@@ -48,10 +44,10 @@ function main(): void {
     if (s0 && s1 && Math.abs(s1 / s0 - 1) >= 0.01) bigMoveDays.add(d);
   }
 
-  const readiness = calibrate(quotes, { expiryDays, bigMoveDays });
+  const readiness = calibrate(quotes, { expiryDays, bigMoveDays }, recorded);
   const obs = closeGapObservations(quotes, bhav);
   const gaps = summarizeGaps(obs);
-  const coverage = closingWindowCoverage(quotes);
+  const coverage = closingWindowCoverage(quotes, recorded);
   const out = { generated: new Date().toISOString(), sessions, missingBhavcopy: missingBhav, closingWindowCoverage: coverage, readiness, closeGap: { window: CLOSE_WINDOW_IST, observations: obs.length, buckets: gaps } };
   const base = join(dataDir('calibration'), 'calibration-report');
   writeFileSync(`${base}.json`, JSON.stringify({ ...out, observations: obs }, null, 2));
@@ -59,7 +55,7 @@ function main(): void {
   const f = (x: number | null) => (x === null ? '—' : `₹${x.toFixed(2)}`);
   const p = (x: number | null) => (x === null ? '—' : `${(x * 100).toFixed(1)}%`);
   const md: string[] = ['# Execution calibration report', '',
-    `Sessions recorded: ${sessions.length} (${sessions[0] ?? '—'} → ${sessions.at(-1) ?? '—'}); quotes ${quotes.length}. Bhavcopy missing for: ${missingBhav.join(', ') || 'none'}.`, '',
+    `Sessions recorded: ${sessions.length} (${sessions[0] ?? '—'} → ${sessions.at(-1) ?? '—'}); quotes 15:00–15:30 IST ${quotes.length}. Bhavcopy missing for: ${missingBhav.join(', ') || 'none'}.`, '',
     '## Closing-window coverage (15:00–15:29 IST, minutes with data for every symbol)', '',
     '| Session | Minutes covered (of 30) | By symbol | Two-sided quotes | Rating |', '|---|---:|---|---:|---|',
     ...coverage.map((c) => `| ${c.date} | ${c.minutesCoveredAllSymbols} | ${Object.entries(c.minutesCoveredBySymbol).map(([s, n]) => `${s} ${n}`).join(', ')} | ${c.twoSidedQuotes} | ${c.rating} |`),
@@ -77,7 +73,7 @@ function main(): void {
   for (const b of gaps) md.push(`| ${b.bucket} | ${b.n} | ${f(b.medianBuyCost)} | ${f(b.medianSellCost)} | ${f(b.p75Cost)} | ${f(b.medianModel)} | ${p(b.modelCoversBoth)} | ${p(b.closeInsideQuote)} |`);
   md.push('', 'Measurement only. No model changes until the pre-registered rule is met (docs/EXECUTION_CALIBRATION.md).');
   writeFileSync(`${base}.md`, md.join('\n') + '\n');
-  console.error(`Sessions ${sessions.length} recorded, ${readiness.sessions} counted, quotes ${quotes.length}, close-gap observations ${obs.length}; readiness ${readiness.ready ? 'READY' : 'NOT READY'}. Report: ${base}.md`);
+  console.error(`Sessions ${sessions.length} recorded, ${readiness.sessions} counted, quotes 15:00–15:30 ${quotes.length}, close-gap observations ${obs.length}; readiness ${readiness.ready ? 'READY' : 'NOT READY'}. Report: ${base}.md`);
 }
 
 try {

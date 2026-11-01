@@ -7,6 +7,8 @@
  * (src/analytics/spread-calibration.ts) is unchanged.
  */
 
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { QuoteSnapshotRow } from './quote-recorder.js';
 
 export const CLOSING_WINDOW = { startIst: '15:00', endIst: '15:29', minutes: 30 } as const;
@@ -33,11 +35,38 @@ function windowMinutes(): string[] {
   return out;
 }
 
-/** Coverage for each IST date present in `rows`. */
-export function closingWindowCoverage(rows: readonly QuoteSnapshotRow[]): ClosingWindowCoverage[] {
+/** IST 15:00–15:30 is 09:30–10:00 UTC (fixed offset, no DST). */
+const WINDOW_UTC = ['09:30', '10:00'] as const;
+
+/**
+ * Read recorded quote files, parsing only rows stamped 15:00–15:30 IST (the only rows calibration,
+ * coverage and close-gap use; about 8 % of a day). `recorded` lists every recorded day and its
+ * symbols from the file names, so a day with nothing in the window is still reported (as NONE).
+ */
+export function readClosingWindowQuotes(dir: string): { rows: QuoteSnapshotRow[]; recorded: Map<string, string[]> } {
+  const rows: QuoteSnapshotRow[] = [];
+  const recorded = new Map<string, string[]>();
+  const files = existsSync(dir) ? readdirSync(dir).filter((f) => /^\d{4}-\d{2}-\d{2}_.+\.jsonl$/.test(f)).sort() : [];
+  for (const f of files) {
+    const date = f.slice(0, 10);
+    recorded.set(date, [...(recorded.get(date) ?? []), f.slice(11, -6)]);
+    for (const l of readFileSync(join(dir, f), 'utf8').split('\n')) {
+      const t = /"recordedAt":"\d{4}-\d{2}-\d{2}T(\d{2}:\d{2})/.exec(l)?.[1];
+      if (t !== undefined && t >= WINDOW_UTC[0] && t <= WINDOW_UTC[1]) rows.push(JSON.parse(l) as QuoteSnapshotRow);
+    }
+  }
+  return { rows, recorded };
+}
+
+/**
+ * Coverage for each IST date present in `rows`, plus every date in `recorded` (date → symbols
+ * recorded that day), so a symbol with no rows in the window counts as 0 minutes.
+ */
+export function closingWindowCoverage(rows: readonly QuoteSnapshotRow[], recorded?: ReadonlyMap<string, readonly string[]>): ClosingWindowCoverage[] {
   const window = windowMinutes();
   const inWindow = new Set(window);
   const byDate = new Map<string, { symbols: Set<string>; minutes: Map<string, Set<string>>; twoSided: number }>();
+  for (const [date, symbols] of recorded ?? []) byDate.set(date, { symbols: new Set(symbols), minutes: new Map(), twoSided: 0 });
   for (const r of rows) {
     const t = new Date(Date.parse(r.recordedAt) + IST_MS).toISOString();
     const date = t.slice(0, 10), hhmm = t.slice(11, 16);

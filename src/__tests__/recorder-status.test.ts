@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { applyCycle, writeStatus, readStatus, type RecorderStatus } from '../history/recorder-status.js';
@@ -59,5 +59,22 @@ describe('closing-window coverage (15:00–15:29 IST)', async () => {
   });
   it('rates NONE when nothing was recorded in the window', () => {
     expect(closingWindowCoverage([row('2026-10-05T04:00:00Z', 'NIFTY')])[0].rating).toBe('NONE');
+  });
+  it('reads only window rows from files, but still reports every recorded day and symbol', async () => {
+    const { readClosingWindowQuotes } = await import('../history/closing-window.js');
+    const dir = mkdtempSync(join(tmpdir(), 'ohq-cw-'));
+    const day: ReturnType<typeof row>[] = [];
+    for (let m = 0; m < 30; m++) day.push(row(`2026-10-05T09:${String(30 + m).padStart(2, '0')}:10Z`, 'NIFTY'));
+    day.push(row('2026-10-05T05:00:00Z', 'NIFTY')); // 10:30 IST: not read
+    writeFileSync(join(dir, '2026-10-05_NIFTY.jsonl'), day.map((r) => JSON.stringify(r)).join('\n') + '\n');
+    // BANKNIFTY recorded only in the morning that day; a second day recorded only in the morning.
+    writeFileSync(join(dir, '2026-10-05_BANKNIFTY.jsonl'), JSON.stringify(row('2026-10-05T05:00:00Z', 'BANKNIFTY')) + '\n');
+    writeFileSync(join(dir, '2026-10-06_NIFTY.jsonl'), JSON.stringify(row('2026-10-06T05:00:00Z', 'NIFTY')) + '\n');
+    const { rows, recorded } = readClosingWindowQuotes(dir);
+    expect(rows).toHaveLength(30);
+    expect([...recorded]).toEqual([['2026-10-05', ['BANKNIFTY', 'NIFTY']], ['2026-10-06', ['NIFTY']]]);
+    const cov = closingWindowCoverage(rows, recorded);
+    expect(cov.map((c) => [c.date, c.rating])).toEqual([['2026-10-05', 'POOR'], ['2026-10-06', 'NONE']]);
+    expect(cov[0].minutesCoveredBySymbol).toEqual({ BANKNIFTY: 0, NIFTY: 30 }); // missing symbol is not GOOD
   });
 });

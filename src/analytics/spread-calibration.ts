@@ -76,10 +76,15 @@ const q = (a: number[], p: number) => {
  * @param sessionFacts IST dates that were expiry days, and dates with a NIFTY close-to-close move ≥ 1 %
  *   (from the bhavcopy). Only dates that are counted sessions satisfy the conditions.
  */
-export function calibrate(rows: readonly QuoteSnapshotRow[], sessionFacts: { expiryDays: ReadonlySet<string>; bigMoveDays: ReadonlySet<string> }): CalibrationReport {
+export function calibrate(
+  rows: readonly QuoteSnapshotRow[],
+  sessionFacts: { expiryDays: ReadonlySet<string>; bigMoveDays: ReadonlySet<string> },
+  /** Every recorded day → its symbols (from file names); see readClosingWindowQuotes. */
+  recorded?: ReadonlyMap<string, readonly string[]>,
+): CalibrationReport {
   const R = CALIBRATION_RULE;
   const istDay = (iso: string) => new Date(Date.parse(iso) + 5.5 * 3_600_000).toISOString().slice(0, 10);
-  const coverage = closingWindowCoverage(rows);
+  const coverage = closingWindowCoverage(rows, recorded);
   const counted = new Set(coverage.filter((c) => c.rating === 'GOOD').map((c) => c.date));
   const excluded = coverage.filter((c) => !counted.has(c.date)).map((c) => ({ date: c.date, rating: c.rating, minutesCovered: c.minutesCoveredAllSymbols }));
   const sessions = counted;

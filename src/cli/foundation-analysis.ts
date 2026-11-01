@@ -8,11 +8,10 @@
  * Writes <data dir>/backtests/foundation-analysis_<from>_<to>_<plan>.{json,md}. Read-only on data.
  */
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { dataDir } from '../history/paths.js';
 import { loadBhavcopy, type BhavRecord } from '../history/bhavcopy.js';
-import type { QuoteSnapshotRow } from '../history/quote-recorder.js';
 import { runEodBacktest, EOD_PESSIMISTIC_V1, type BacktestTrade } from '../backtest/eod-engine.js';
 import { midpoint } from '../backtest/report.js';
 import { calculateOrderCosts, DEFAULT_BROKERAGE_PLAN } from '../costs/transaction-cost-engine.js';
@@ -20,6 +19,7 @@ import { tradeMargin, capitalSummary } from '../analytics/margin.js';
 import { settlementOutcome, theoreticalMaxNetLoss, tailSummary, type TradeTail } from '../analytics/tail-loss.js';
 import { labelTrade, bucketize, REGIME_THRESHOLDS, type RegimeTradeInput } from '../analytics/regime.js';
 import { calibrate } from '../analytics/spread-calibration.js';
+import { readClosingWindowQuotes } from '../history/closing-window.js';
 import { createRefIronCondor } from '../strategy/reference/nifty-weekly-iron-condor.js';
 
 function arg(name: string): string | undefined {
@@ -101,14 +101,10 @@ function main(): void {
   const buckets = bucketize(rIn, labels);
 
   // Spread calibration readiness
-  const qdir = dataDir('quotes/nse-fo');
-  const quotes: QuoteSnapshotRow[] = [];
-  for (const f of existsSync(qdir) ? readdirSync(qdir).filter((x) => /^\d{4}-\d{2}-\d{2}_.+\.jsonl$/.test(x)) : []) {
-    for (const l of readFileSync(join(qdir, f), 'utf8').split('\n')) if (l.trim()) quotes.push(JSON.parse(l) as QuoteSnapshotRow);
-  }
-  const qSessions = [...new Set(quotes.map((q) => new Date(Date.parse(q.recordedAt) + 5.5 * 3_600_000).toISOString().slice(0, 10)))];
+  const { rows: quotes, recorded } = readClosingWindowQuotes(dataDir('quotes/nse-fo'));
+  const qSessions = [...recorded.keys()];
   const bigMoveDays = new Set(qSessions.filter((d) => { const i = undDates.indexOf(d); return i > 0 && Math.abs(und[i] / und[i - 1] - 1) >= 0.01; }));
-  const calib = calibrate(quotes, { expiryDays, bigMoveDays });
+  const calib = calibrate(quotes, { expiryDays, bigMoveDays }, recorded);
 
   const out = { generated: new Date().toISOString(), from: result.from, to: result.to, brokeragePlanId: plan, spreadModel: result.spreadModel,
     trades: result.trades.length, capital, margins, tail, tails, regimeThresholds: REGIME_THRESHOLDS, regimes: buckets,
