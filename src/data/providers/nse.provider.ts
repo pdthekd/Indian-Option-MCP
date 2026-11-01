@@ -73,26 +73,6 @@ const USER_AGENTS: string[] = [
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Vivaldi/6.7',
 ];
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Parse an NSE-style date string like "29-May-2026" into ISO "2026-05-29".
- * Returns the original string untouched if parsing fails.
- */
-function parseNSEDate(raw: string): string {
-  const months: Record<string, string> = {
-    Jan: '01', Feb: '02', Mar: '03', Apr: '04',
-    May: '05', Jun: '06', Jul: '07', Aug: '08',
-    Sep: '09', Oct: '10', Nov: '11', Dec: '12',
-  };
-  const m = raw.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
-  if (!m) return raw;
-  const day = m[1].padStart(2, '0');
-  const mon = months[m[2]];
-  if (!mon) return raw;
-  return `${m[3]}-${mon}-${day}`;
-}
-
 /** Sleep helper. */
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));

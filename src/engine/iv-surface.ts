@@ -1,10 +1,7 @@
 /**
  * @module engine/iv-surface
- * Implied Volatility surface, smile, skew, and term structure analysis.
- * Provides tools for analyzing the volatility landscape across strikes and expiries.
+ * Implied volatility smile, skew and expected move for one expiry.
  */
-
-import { normCDF, standardDeviation, logReturns, percentile, mean } from '../utils/math.js';
 
 /** Data point for IV smile visualization */
 export interface IVSmilePoint {
@@ -15,13 +12,6 @@ export interface IVSmilePoint {
   avgIV: number | null;
 }
 
-/** ATM IV for a specific expiry */
-export interface IVTermPoint {
-  expiry: string;
-  iv: number;
-  daysToExpiry: number;
-}
-
 /** IV skew analysis result */
 export interface IVSkewResult {
   skew: number;
@@ -29,16 +19,6 @@ export interface IVSkewResult {
   otmPutIV: number;
   atmIV: number;
   otmCallIV: number;
-}
-
-/** HV vs IV comparison */
-export interface HVvsIVResult {
-  hv: number;
-  iv: number;
-  spread: number;
-  spreadPercent: number;
-  interpretation: string;
-  tradeSuggestion: string;
 }
 
 /**
@@ -67,20 +47,6 @@ export function calculateIVSmile(
       return { strike: d.strike, moneyness, callIV, putIV, avgIV };
     })
     .sort((a, b) => a.strike - b.strike);
-}
-
-/**
- * Calculate IV term structure — ATM IV across different expiries.
- * Shows how the market prices volatility over different time horizons.
- *
- * @param atmIVsByExpiry - Array of {expiry, iv, daysToExpiry}
- */
-export function calculateIVTermStructure(
-  atmIVsByExpiry: IVTermPoint[]
-): IVTermPoint[] {
-  return [...atmIVsByExpiry]
-    .filter(p => p.iv > 0 && p.daysToExpiry > 0)
-    .sort((a, b) => a.daysToExpiry - b.daysToExpiry);
 }
 
 /**
@@ -138,96 +104,6 @@ export function calculateIVSkew(
   else description = 'Strong call skew — extreme bullish demand';
 
   return { skew, description, otmPutIV, atmIV, otmCallIV };
-}
-
-/**
- * Calculate IV Rank — where current IV sits relative to its 52-week range.
- * IV Rank = (Current IV - 52wk Low) / (52wk High - 52wk Low) × 100
- *
- * @param currentIV - Current implied volatility
- * @param ivHistory - Array of historical IV values (ideally 252 trading days)
- * @returns IV Rank as 0-100
- */
-export function calculateIVRank(currentIV: number, ivHistory: number[]): number {
-  if (ivHistory.length === 0) return 50;
-  const min = Math.min(...ivHistory);
-  const max = Math.max(...ivHistory);
-  if (max === min) return 50;
-  return Math.max(0, Math.min(100, ((currentIV - min) / (max - min)) * 100));
-}
-
-/**
- * Calculate IV Percentile — percentage of days IV was below current level.
- * More robust than IV Rank as it's not distorted by extreme outliers.
- *
- * @param currentIV - Current implied volatility
- * @param ivHistory - Array of historical IV values
- * @returns IV Percentile as 0-100
- */
-export function calculateIVPercentile(currentIV: number, ivHistory: number[]): number {
-  if (ivHistory.length === 0) return 50;
-  const below = ivHistory.filter(iv => iv < currentIV).length;
-  return (below / ivHistory.length) * 100;
-}
-
-/**
- * Calculate Historical (Realized) Volatility from close prices.
- * Uses log returns with annualization (√252 trading days).
- *
- * HV = σ(log returns) × √252
- *
- * @param closePrices - Array of closing prices (most recent last)
- * @param window - Lookback window in trading days (default 20)
- */
-export function calculateHistoricalVolatility(
-  closePrices: number[],
-  window: number = 20
-): number {
-  if (closePrices.length < window + 1) {
-    if (closePrices.length < 2) return 0;
-    // Use whatever data is available
-    const returns = logReturns(closePrices);
-    return standardDeviation(returns) * Math.sqrt(252);
-  }
-
-  const recentPrices = closePrices.slice(-window - 1);
-  const returns = logReturns(recentPrices);
-  return standardDeviation(returns) * Math.sqrt(252);
-}
-
-/**
- * Compare Historical Volatility vs Implied Volatility.
- * When IV > HV, options are "expensive" → favor selling strategies.
- * When IV < HV, options are "cheap" → favor buying strategies.
- *
- * @param hv - Historical volatility (annualized, decimal)
- * @param iv - Implied volatility (annualized, decimal)
- */
-export function hvVsIvAnalysis(hv: number, iv: number): HVvsIVResult {
-  const spread = iv - hv;
-  const spreadPercent = hv > 0 ? (spread / hv) * 100 : 0;
-
-  let interpretation: string;
-  let tradeSuggestion: string;
-
-  if (spreadPercent > 20) {
-    interpretation = 'IV significantly overpriced vs realized volatility';
-    tradeSuggestion = 'Favor option SELLING strategies (Iron Condors, Short Strangles, Credit Spreads)';
-  } else if (spreadPercent > 5) {
-    interpretation = 'IV moderately above realized volatility — options slightly expensive';
-    tradeSuggestion = 'Lean towards selling or neutral strategies';
-  } else if (spreadPercent > -5) {
-    interpretation = 'IV fairly priced relative to historical volatility';
-    tradeSuggestion = 'No strong edge from volatility — use directional view';
-  } else if (spreadPercent > -20) {
-    interpretation = 'IV below realized volatility — options are cheap';
-    tradeSuggestion = 'Favor option BUYING strategies (Long Straddles, Debit Spreads)';
-  } else {
-    interpretation = 'IV significantly underpriced — rare opportunity for option buyers';
-    tradeSuggestion = 'Strong edge in buying options (Long Straddles, Long Strangles)';
-  }
-
-  return { hv, iv, spread, spreadPercent, interpretation, tradeSuggestion };
 }
 
 /**

@@ -47,7 +47,6 @@ export function estimateMargin(
   lotSize: number,
   iv: number = 0.15
 ): MarginEstimate {
-  const notional = spotPrice * lotSize;
   const breakdown: Array<{ description: string; margin: number }> = [];
 
   const buyLegs = legs.filter(l => l.action === 'BUY');

@@ -667,10 +667,3 @@ export function listStrategies(category?: string): StrategyTemplate[] {
     s => s.category.toLowerCase() === category.toLowerCase()
   );
 }
-
-/**
- * Get a strategy template by name.
- */
-export function getStrategyTemplate(name: string): StrategyTemplate | undefined {
-  return STRATEGIES[name];
-}

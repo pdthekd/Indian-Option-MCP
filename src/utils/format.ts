@@ -49,37 +49,6 @@ export function formatLargeNumber(num: number): string {
 }
 
 /**
- * Format a Greek value with appropriate precision.
- */
-export function formatGreek(name: string, value: number): string {
-  const precisionMap: Record<string, number> = {
-    delta: 4,
-    gamma: 6,
-    theta: 2,
-    vega: 2,
-    rho: 2,
-    charm: 6,
-    vanna: 6,
-    volga: 4,
-    iv: 2,
-  };
-
-  const decimals = precisionMap[name.toLowerCase()] ?? 4;
-  const formatted = value.toFixed(decimals);
-
-  const symbolMap: Record<string, string> = {
-    delta: 'Δ',
-    gamma: 'Γ',
-    theta: 'Θ',
-    vega: 'ν',
-    rho: 'ρ',
-  };
-
-  const symbol = symbolMap[name.toLowerCase()] ?? name;
-  return `${symbol}: ${formatted}`;
-}
-
-/**
  * Format Open Interest with K/L/Cr suffix.
  */
 export function formatOI(oi: number): string {
@@ -90,25 +59,10 @@ export function formatOI(oi: number): string {
 }
 
 /**
- * Format a strategy leg for display.
- */
-export function formatLeg(action: string, qty: number, type: string, strike: number, premium: number): string {
-  return `${action} ${qty}x ${type} ${strike} @ ₹${premium.toFixed(2)}`;
-}
-
-/**
  * Format P&L with color-coded prefix.
  */
 export function formatPnL(pnl: number): string {
   if (pnl > 0) return `+${formatCurrency(pnl)} (Profit)`;
   if (pnl < 0) return `${formatCurrency(pnl)} (Loss)`;
   return '₹0.00 (Breakeven)';
-}
-
-/**
- * Format risk-reward ratio.
- */
-export function formatRiskReward(ratio: number): string {
-  if (!isFinite(ratio)) return 'Unlimited';
-  return `1:${ratio.toFixed(2)}`;
 }

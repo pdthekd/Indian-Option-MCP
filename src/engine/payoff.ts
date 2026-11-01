@@ -1,14 +1,13 @@
 /**
  * @fileoverview Option Strategy Payoff Calculator
  *
- * Calculates theoretical P&L at expiry and before expiry for multi-leg
- * option strategies. Supports finding breakeven points and computing
- * risk/reward metrics.
+ * Calculates P&L at expiry for multi-leg option strategies: exact max profit, max loss and
+ * breakevens, and a payoff table over a spot range.
  *
  * @module engine/payoff
  */
 
-import { optionPrice, type OptionType } from './black-scholes.js';
+import { type OptionType } from './black-scholes.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -92,16 +91,6 @@ function legPayoffAtExpiry(
   const direction = leg.action === 'BUY' ? 1 : -1;
   // P&L = direction * (intrinsic - premium) * qty * lotSize
   return direction * (intrinsic - leg.premium) * leg.qty * lotSize;
-}
-
-/**
- * Parse an expiry date string and compute days remaining from today.
- */
-function daysToExpiry(expiryStr: string): number {
-  const expiry = new Date(expiryStr);
-  const now = new Date();
-  const msPerDay = 24 * 60 * 60 * 1000;
-  return Math.max((expiry.getTime() - now.getTime()) / msPerDay, 0.001);
 }
 
 // ─── Core Payoff Functions ───────────────────────────────────────────────────
@@ -282,89 +271,6 @@ export function analyzeExpiryPayoff(
     upperTailSlope,
     pnlAtZero: values[0],
     kinks,
-  };
-}
-
-/**
- * Calculate the payoff of a multi-leg strategy before expiry.
- *
- * Uses Black-Scholes pricing to value each leg at the hypothetical spot price,
- * assuming a uniform IV and constant risk-free rate.
- *
- * @param legs - Array of strategy legs
- * @param spotRange - Range of spot prices to evaluate
- * @param lotSize - Lot size
- * @param daysRemaining - Calendar days remaining to expiry
- * @param iv - Implied volatility (decimal, e.g. 0.15 for 15%)
- * @param r - Risk-free rate (decimal, e.g. 0.07 for 7%)
- * @returns Complete payoff analysis
- */
-export function calculatePayoffBeforeExpiry(
-  legs: StrategyLeg[],
-  spotRange: SpotRange,
-  lotSize: number,
-  daysRemaining: number,
-  iv: number,
-  r: number
-): PayoffResult {
-  if (legs.length === 0) {
-    return {
-      data: [],
-      maxProfit: 0,
-      maxLoss: 0,
-      breakevens: [],
-      riskRewardRatio: 0,
-    };
-  }
-
-  const T = Math.max(daysRemaining / 365, 1e-6);
-  const { min, max, steps } = spotRange;
-  const stepSize = (max - min) / Math.max(steps, 1);
-  const data: PayoffPoint[] = [];
-
-  let maxPnl = -Infinity;
-  let minPnl = Infinity;
-
-  for (let i = 0; i <= steps; i++) {
-    const spotPrice = min + i * stepSize;
-    let totalPnl = 0;
-
-    for (const leg of legs) {
-      // Current theoretical price at this hypothetical spot
-      const theoreticalPrice = optionPrice(
-        spotPrice,
-        leg.strike,
-        T,
-        r,
-        iv,
-        0,
-        leg.type
-      );
-
-      const direction = leg.action === 'BUY' ? 1 : -1;
-      // P&L = direction * (theoretical - entry_premium) * qty * lotSize
-      const legPnl = direction * (theoreticalPrice - leg.premium) * leg.qty * lotSize;
-      totalPnl += legPnl;
-    }
-
-    data.push({ underlyingPrice: spotPrice, pnl: totalPnl });
-    maxPnl = Math.max(maxPnl, totalPnl);
-    minPnl = Math.min(minPnl, totalPnl);
-  }
-
-  const breakevens = findBreakevens(data);
-
-  const riskRewardRatio =
-    minPnl === 0
-      ? Infinity
-      : Math.abs(maxPnl / minPnl);
-
-  return {
-    data,
-    maxProfit: maxPnl,
-    maxLoss: minPnl,
-    breakevens,
-    riskRewardRatio,
   };
 }
 
