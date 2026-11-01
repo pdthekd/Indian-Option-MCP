@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import {
   normalizeExpiry, expiryInstant, timeToExpiryYears, parseSourceTimestamp, istDate,
 } from '../utils/time.js';
-import { daysToExpiry } from '../utils/date.js';
+import { isMarketOpen, getMarketStatusInfo } from '../utils/date.js';
 import { getNextExpiry } from '../data/constants/expiry-calendar.js';
 import { NSEProvider } from '../data/providers/nse.provider.js';
 import { assessFreshness } from '../data/quality.js';
@@ -37,10 +37,16 @@ describe('time utilities', () => {
     expect(istDate(new Date('2026-10-03T18:29:00Z'))).toBe('2026-10-03');
     expect(istDate(new Date('2026-10-03T18:31:00Z'))).toBe('2026-10-04');
   });
-  it('legacy daysToExpiry no longer depends on parse-time TZ shifts', () => {
-    const d = daysToExpiry('2099-01-10');
-    expect(Number.isInteger(d)).toBe(true);
-    expect(d).toBeGreaterThan(0);
+  it('market open 09:15–15:30 IST on trading days only, whatever the host time zone', () => {
+    expect(isMarketOpen(new Date('2026-10-06T03:44:59Z'))).toBe(false); // 09:14:59 IST
+    expect(isMarketOpen(new Date('2026-10-06T03:45:00Z'))).toBe(true);  // 09:15 IST
+    expect(isMarketOpen(new Date('2026-10-06T09:59:59Z'))).toBe(true);  // 15:29:59 IST
+    expect(isMarketOpen(new Date('2026-10-06T10:00:00Z'))).toBe(false); // 15:30 IST
+    expect(isMarketOpen(new Date('2026-10-03T05:00:00Z'))).toBe(false); // Saturday
+    expect(isMarketOpen(new Date('2026-10-20T05:00:00Z'))).toBe(false); // Dussehra holiday
+    // 00:30 IST Tue 2026-10-06 is still Monday in UTC: the IST date decides.
+    expect(getMarketStatusInfo(new Date('2026-10-05T19:00:00Z')).message).toBe('Market opens at 9:15 AM IST');
+    expect(getMarketStatusInfo(new Date('2026-10-19T19:00:00Z')).message).toBe('Market closed (holiday/weekend)'); // 00:30 IST on 20 Oct
   });
 });
 

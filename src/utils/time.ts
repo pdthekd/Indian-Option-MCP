@@ -73,6 +73,12 @@ export function istDate(now: Date = new Date()): string {
   return t.toISOString().slice(0, 10);
 }
 
+/** Minutes since IST midnight for an instant. */
+export function istMinutes(now: Date = new Date()): number {
+  const t = new Date(now.getTime() + IST_OFFSET_MS);
+  return t.getUTCHours() * 60 + t.getUTCMinutes();
+}
+
 /**
  * Parse NSE timestamps such as "03-Oct-2026 15:30:00" (IST) into a UTC
  * instant. Also accepts ISO-8601 strings. Returns null when unparseable —

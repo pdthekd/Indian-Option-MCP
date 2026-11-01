@@ -157,7 +157,7 @@ function costLines(rt: ReturnType<typeof roundTripCosts>): string[] {
 export function createServer(opts: ServerOptions = {}): McpServer {
   const provider = opts.provider ?? createDataProvider();
   const now = opts.now ?? (() => new Date());
-  const marketOpen = opts.marketOpen ?? isMarketOpen;
+  const marketOpen = opts.marketOpen ?? (() => isMarketOpen(now()));
   const chainCache = new MemoryCache<OptionChainData>({ maxSize: 50, ttlMs: 10_000 });
 
   // ── Lazy provider initialization ───────────────────────────
@@ -702,7 +702,7 @@ export function createServer(opts: ServerOptions = {}): McpServer {
           out.push(`${idx}: UNAVAILABLE — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
-      out.push('', `🕐 ${getMarketStatusInfo().message} (${holidayBasis(now())})`);
+      out.push('', `🕐 ${getMarketStatusInfo(now()).message} (${holidayBasis(now())})`);
       return text(out.join('\n'));
     },
   );
@@ -712,7 +712,7 @@ export function createServer(opts: ServerOptions = {}): McpServer {
     'Clock-based NSE session status (09:15–15:30 IST, weekdays, NSE trading-holiday list; 2026 list from the official NSE circular). Does not know about special sessions (e.g. Muhurat) or unscheduled closures.',
     {},
     async () => {
-      const s = getMarketStatusInfo();
+      const s = getMarketStatusInfo(now());
       return text(`${s.isOpen ? '🟢' : '🔴'} ${s.message}\nBasis: system clock + ${holidayBasis(now())}. Ignores special sessions and unscheduled closures.`);
     },
   );
@@ -921,7 +921,7 @@ export function createServer(opts: ServerOptions = {}): McpServer {
   server.resource('market-status', 'market://status', async () => ({
     contents: [{
       uri: 'market://status',
-      text: JSON.stringify({ ...getMarketStatusInfo(), basis: 'clock+local-holiday-list (unverified)', timestamp: now().toISOString() }),
+      text: JSON.stringify({ ...getMarketStatusInfo(now()), basis: 'clock+local-holiday-list (unverified)', timestamp: now().toISOString() }),
     }],
   }));
 

@@ -16,19 +16,11 @@ import { QuoteRecorder } from '../history/quote-recorder.js';
 import { applyCycle, writeStatus, readStatus, type RecorderStatus } from '../history/recorder-status.js';
 import { isMarketOpen } from '../utils/date.js';
 import { dataDir } from '../history/paths.js';
-import { istDate } from '../utils/time.js';
-
-const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+import { istDate, istMinutes } from '../utils/time.js';
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 ? process.argv[i + 1] : undefined;
-}
-
-/** Minutes since IST midnight for an instant. */
-function istMinutes(d: Date): number {
-  const t = new Date(d.getTime() + IST_OFFSET_MS);
-  return t.getUTCHours() * 60 + t.getUTCMinutes();
 }
 
 async function main(): Promise<void> {
@@ -75,7 +67,7 @@ async function main(): Promise<void> {
   // Recorder tuning: short timeouts, 2 attempts, no degraded fallback (rejected anyway), so one hung
   // NSE request cannot eat several minute-cycles (observed 2026-10-05).
   const provider = createDataProvider({ nse: { fetchTimeoutMs: 8_000, maxRetries: 2, allowFallback: false } });
-  const recorder = new QuoteRecorder({ provider, symbols, strikesEachSide: strikes, marketOpen: isMarketOpen });
+  const recorder = new QuoteRecorder({ provider, symbols, strikesEachSide: strikes, marketOpen: () => isMarketOpen() });
   console.error(`Recording ${symbols.join(', ')} every ${intervalS}s, ATM±${strikes}${until ? `, until ${until} IST` : ''}, to ${dir}`);
 
   let stop = false;
