@@ -368,7 +368,6 @@ indian-option-mcp/
 ├── src/
 │   ├── index.ts                    # Entry point — stdio transport
 │   ├── server.ts                   # MCP server — all 35+ tools registered here
-│   ├── config.ts                   # Zod-validated env configuration
 │   │
 │   ├── data/
 │   │   ├── providers/
@@ -377,36 +376,27 @@ indian-option-mcp/
 │   │   │   └── zerodha.provider.ts # Kite Connect API client
 │   │   ├── provider-factory.ts     # Provider factory pattern
 │   │   ├── cache/
-│   │   │   ├── memory-cache.ts     # TTL-based in-memory cache
-│   │   │   └── instrument-cache.ts # Long-lived instrument master cache
-│   │   ├── constants/
-│   │   │   ├── lot-sizes.ts        # F&O lot sizes (NIFTY=75, BANKNIFTY=30, etc.)
-│   │   │   ├── expiry-calendar.ts  # Expiry date calculations
-│   │   │   └── indices.ts          # Index metadata & strike intervals
-│   │   └── models/
-│   │       ├── option-chain.ts     # Option chain data models
-│   │       ├── instrument.ts       # Instrument definitions
-│   │       ├── quote.ts            # Quote/tick models
-│   │       ├── strategy.ts         # Strategy type definitions
-│   │       └── index.ts            # Model barrel exports
+│   │   │   └── memory-cache.ts     # TTL-based in-memory cache
+│   │   └── constants/
+│   │       ├── lot-sizes.ts        # F&O lot sizes (NIFTY=75, BANKNIFTY=30, etc.)
+│   │       └── expiry-calendar.ts  # Expiry date calculations
 │   │
 │   ├── engine/
 │   │   ├── black-scholes.ts        # Option pricing & Greeks (Δ, Γ, Θ, ν, ρ)
 │   │   ├── implied-volatility.ts   # IV solver (Newton-Raphson)
-│   │   ├── iv-surface.ts           # IV Smile, Skew, Rank, Percentile, HV
+│   │   ├── iv-surface.ts           # IV smile, skew, expected move
 │   │   ├── strategy-builder.ts     # 34 strategy templates + builder
 │   │   ├── payoff.ts               # Payoff/P&L at expiry engine
 │   │   ├── max-pain.ts             # Max Pain calculator
 │   │   ├── pcr.ts                  # Put-Call Ratio analyzer
-│   │   ├── oi-analysis.ts          # OI distribution & activity detection
+│   │   ├── oi-analysis.ts          # OI distribution
 │   │   ├── margin-calculator.ts    # SPAN margin estimator
-│   │   └── risk-metrics.ts         # POP, Kelly, position sizing
+│   │   └── risk-metrics.ts         # POP from legs, position sizing
 │   │
 │   └── utils/
-│       ├── date.ts                 # Market hours, DTE, expiry helpers
+│       ├── date.ts                 # Market hours (regular session status)
 │       ├── format.ts               # Currency, number, OI formatting
-│       ├── math.ts                 # Normal CDF, statistical functions
-│       └── logger.ts               # Stderr-only logger (MCP-safe)
+│       └── math.ts                 # Normal CDF, statistical functions
 │
 ├── dist/                           # Compiled output
 ├── package.json

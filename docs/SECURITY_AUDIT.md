@@ -19,7 +19,7 @@ Severity scale: **CRITICAL** (blocks any use with real money), **HIGH**, **MEDIU
 | S7 | GitHub Actions pinned to mutable tags; no top-level `permissions:`; tag-derived values interpolated into shell | MEDIUM | **Fixed** in CI (least-privilege `permissions`). **Release workflow disabled** (moved to `.github/workflows-disabled/`). SHA pinning still a follow-up |
 | S8 | Unit test performs live network call to nseindia.com | LOW | **Fixed**: provider init no longer fires at `createServer()` in tests |
 | S9 | Kite HTTP error bodies (≤300 chars) are copied into tool error text returned to the LLM | LOW | Documented (no secrets observed in Kite error schema) |
-| S10 | Dead `config.ts` (validated config) is never imported; real config is unvalidated `process.env` reads | LOW | Documented |
+| S10 | Dead `config.ts` (validated config) is never imported; real config is unvalidated `process.env` reads | LOW | **Fixed** 2026-11-02: dead `config.ts` deleted; the provider factory reads only `DATA_PROVIDER`, `KITE_API_KEY`, `KITE_ACCESS_TOKEN` |
 | S11 | Upstream author e-mail and local path (`/Users/devagarwalla/...`) in git history/commit metadata | INFO | Public upstream metadata; cannot be removed without history rewrite; no action |
 | S12 | No secrets, tokens, keys, cookies, phone numbers or account IDs found in current files or history | INFO | — |
 
@@ -47,7 +47,7 @@ Deleted `debug-mcp.mjs` used `spawn` (debug harness, not shipped).
 
 - No filesystem access, no shell, no dynamic code loading, no telemetry/analytics, no webhooks.
 - `process.env` is read only for `DATA_PROVIDER`, `KITE_API_KEY`, `KITE_API_SECRET`,
-  `KITE_ACCESS_TOKEN` (and in dead `config.ts`). No tool can read arbitrary env vars.
+  `KITE_ACCESS_TOKEN`. No tool can read arbitrary env vars.
 - The bundle contains exactly five `fetch(` call sites, all in the NSE and Zerodha providers.
 
 ## C. MCP-specific review
