@@ -133,7 +133,17 @@ export class QuoteRecorder {
       res.skipped.push({ symbol: '*', reason: 'market closed' });
       return res;
     }
-    if (!this.cfg.provider.isReady()) await this.cfg.provider.initialize();
+    // A failed first session (NSE homepage timeout, network not up yet) must not end the day:
+    // report it as a skipped cycle and try again next interval.
+    if (!this.cfg.provider.isReady()) {
+      try {
+        await this.cfg.provider.initialize();
+      } catch (err) {
+        const reason = `provider init failed: ${err instanceof Error ? err.message : String(err)}`;
+        for (const symbol of this.cfg.symbols) res.skipped.push({ symbol, reason });
+        return res;
+      }
+    }
 
     for (const symbol of this.cfg.symbols) {
       let nearest: OptionChainData;

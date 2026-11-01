@@ -225,6 +225,19 @@ describe('QuoteRecorder', () => {
     expect(r.written).toBe(0);
     expect(Object.keys(files)).toHaveLength(0);
   });
+  it('a failed provider start is a skipped cycle, not a crash; the next cycle retries', async () => {
+    const { files, prov, rec } = setup();
+    let fail = true;
+    prov.initialize = async () => {
+      if (fail) { fail = false; throw new Error('NSE session refresh failed: This operation was aborted'); }
+      (prov as unknown as { _ready: boolean })._ready = true;
+    };
+    const first = await rec.cycle();
+    expect(first.written).toBe(0);
+    expect(first.skipped).toEqual([{ symbol: 'NIFTY', reason: expect.stringMatching(/provider init failed/) }]);
+    expect((await rec.cycle()).written).toBe(20);
+    expect(files['2026-10-05_NIFTY.jsonl']).toHaveLength(20);
+  });
   it('skips non-FULL data by default', async () => {
     const { rec, prov } = setup();
     prov.quality = 'DEGRADED';
